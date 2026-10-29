@@ -1,65 +1,83 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://unistyl.es/), etc.
+ * Sistema de diseño de MiApp: colores (claro/oscuro), espaciado, radios y tipografía.
+ * Todos los componentes deben consumir estos tokens en lugar de valores sueltos
+ * para mantener una apariencia coherente.
  */
-
-import '@/global.css';
-
-import { Platform } from 'react-native';
 
 export const Colors = {
   light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
+    primary: '#4F46E5',
+    primaryMuted: '#E0E7FF',
+    onPrimary: '#FFFFFF',
+    background: '#F5F6FB',
+    surface: '#FFFFFF',
+    surfaceAlt: '#EEF0F7',
+    text: '#0F172A',
+    textSecondary: '#64748B',
+    border: '#E2E8F0',
+    success: '#15803D',
+    danger: '#DC2626',
+    dangerSurface: '#FEE2E2',
+    info: '#2563EB',
+    infoSurface: '#DBEAFE',
+    skeleton: '#E2E8F0',
   },
   dark: {
-    text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
+    primary: '#818CF8',
+    primaryMuted: '#272E5A',
+    onPrimary: '#0B1020',
+    background: '#0B1020',
+    surface: '#151B2E',
+    surfaceAlt: '#1E2640',
+    text: '#F1F5F9',
+    textSecondary: '#94A3B8',
+    border: '#26304A',
+    success: '#4ADE80',
+    danger: '#F87171',
+    dangerSurface: '#3B1219',
+    info: '#60A5FA',
+    infoSurface: '#172554',
+    skeleton: '#26304A',
   },
 } as const;
 
-export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
-
-export const Fonts = Platform.select({
-  ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
-  },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
-  },
-  web: {
-    sans: 'var(--font-display)',
-    serif: 'var(--font-serif)',
-    rounded: 'var(--font-rounded)',
-    mono: 'var(--font-mono)',
-  },
-});
+export type ColorScheme = keyof typeof Colors;
+export type ThemeColors = { [K in keyof typeof Colors.light]: string };
+export type ThemeColor = keyof ThemeColors;
 
 export const Spacing = {
-  half: 2,
-  one: 4,
-  two: 8,
-  three: 16,
-  four: 24,
-  five: 32,
-  six: 64,
+  xxs: 2,
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 24,
+  xxl: 32,
+  xxxl: 48,
 } as const;
 
-export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
-export const MaxContentWidth = 800;
+export const Radius = {
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 24,
+  pill: 999,
+} as const;
+
+export const Typography = {
+  display: { fontSize: 30, lineHeight: 36, fontWeight: '700' },
+  title: { fontSize: 22, lineHeight: 28, fontWeight: '700' },
+  heading: { fontSize: 17, lineHeight: 24, fontWeight: '600' },
+  body: { fontSize: 15, lineHeight: 22, fontWeight: '400' },
+  bodyStrong: { fontSize: 15, lineHeight: 22, fontWeight: '600' },
+  caption: { fontSize: 13, lineHeight: 18, fontWeight: '400' },
+  label: { fontSize: 12, lineHeight: 16, fontWeight: '600', letterSpacing: 0.6 },
+} as const;
+
+export type TypographyVariant = keyof typeof Typography;
+
+/** Ancho máximo del contenido para que se vea bien en tablets y pantallas plegables. */
+export const MaxContentWidth = 640;
+
+/** Espacio inferior reservado para que la barra de pestañas no tape el contenido. */
+export const BottomTabInset = 96;
