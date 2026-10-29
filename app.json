@@ -45,6 +45,17 @@
       "typedRoutes": true,
       "reactCompiler": true
     },
-    "description": "MiApp: base profesional de aplicación Android con Expo Router y TypeScript."
+    "description": "MiApp: base profesional de aplicación Android con Expo Router y TypeScript.",
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "56dd7e97-df8d-4fcf-a536-e5d66f0e5285"
+      }
+    },
+    "owner": "sebatrop"
   }
 }
