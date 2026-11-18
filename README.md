@@ -28,6 +28,7 @@ Base profesional de una aplicación Android construida con **React Native + Expo
 | Navegación | Expo Router con barra de pestañas nativa (Material 3 en Android): **Inicio**, **Notas**, **Ajustes** e **Información**. Rutas tipadas (`typedRoutes`). Pantalla 404 personalizada. |
 | Diseño | Sistema de diseño propio (`src/constants/theme.ts`): colores claro/oscuro, espaciado, radios y tipografía. Iconos Material Symbols vía `expo-symbols`. Contenido con ancho máximo para tablets. |
 | Cuentas | Hay que iniciar sesión para usar la app. Registro con nombre, correo y contraseña (se envía un correo de verificación), inicio de sesión con correo o con **Google** (Android), recuperación de contraseña y cierre de sesión en *Ajustes*. La sesión se recuerda entre aperturas. Firebase Auth. |
+| Actualizaciones | *Ajustes → Actualizaciones*: buscar e instalar versiones nuevas sin reinstalar el APK (EAS Update) y opción **Actualizar automáticamente** (al abrir la app descarga la versión nueva y ofrece reiniciar). |
 | Notas | Bloc de notas: crea, edita y elimina notas. Todo lo que escribes se guarda automáticamente en el dispositivo (AsyncStorage), aunque cierres la app. Cada cuenta tiene sus propias notas en ese dispositivo. La primera línea se usa como título; las notas vacías se descartan al salir. |
 | Ajustes | Tema (Sistema / Claro / Oscuro), notificaciones y modo de prueba de errores. Se guardan en el dispositivo con AsyncStorage. |
 | Estados | Esqueletos de carga, indicadores, «deslizar para actualizar», mensajes de error con botón **Reintentar**, avisos no bloqueantes y `ErrorBoundary` global. |
@@ -157,6 +158,21 @@ EAS Build compila la app en los servidores de Expo; no necesitas Android Studio.
    - Con cable: `adb install ruta/al/archivo.apk`.
    - En un emulador: `npx eas-cli@latest build:run -p android --latest`.
 
+### Publicar una actualización sin reinstalar (EAS Update)
+
+Los cambios de código y textos (todo lo que está en `src/`) se pueden enviar a los teléfonos que ya tienen el APK instalado:
+
+```powershell
+git pull
+npm run update:apk     # teléfonos con el APK (canal preview)
+npm run update:play    # app de Google Play (canal production)
+```
+
+Al abrir la app, si *Actualizar automáticamente* está activado, se descarga la versión nueva y aparece «Actualización lista → Reiniciar ahora». También se puede buscar a mano en *Ajustes → Actualizaciones*.
+
+> - Solo funciona en APK/AAB generados **después** de añadir esta función (necesitan `expo-updates` y el canal de `eas.json`).
+> - Si cambias dependencias nativas (`npx expo install` de un paquete con código nativo) o la `version` de `app.json`, tienes que generar un APK nuevo con `npm run build:apk`: las actualizaciones solo llegan a APKs con la misma `runtimeVersion` (política `appVersion`).
+
 ### Perfiles de `eas.json`
 
 | Perfil | Formato | Uso |
@@ -204,7 +220,7 @@ Comparte el enlace del build `preview` de expo.dev, o sube el `.apk` a Google Dr
 
 ### Actualizaciones OTA (opcional)
 
-Para publicar cambios de JavaScript sin recompilar, configura EAS Update: `npx eas-cli@latest update:configure` ([documentación](https://docs.expo.dev/eas-update/introduction/)).
+EAS Update ya está configurado: ver [Publicar una actualización sin reinstalar](#publicar-una-actualización-sin-reinstalar-eas-update) ([documentación](https://docs.expo.dev/eas-update/introduction/)).
 
 ---
 

@@ -133,6 +133,13 @@ export default function SettingsScreen() {
           <Section title="Más">
             <ListGroup>
               <ListRow
+                icon="system_update"
+                title="Actualizaciones"
+                description={settings.autoUpdate ? 'Automáticas activadas' : 'Automáticas desactivadas'}
+                onPress={() => router.navigate('/updates')}
+                showChevron
+              />
+              <ListRow
                 icon="info"
                 title="Información de la app"
                 description="Versión, dispositivo y tecnologías"

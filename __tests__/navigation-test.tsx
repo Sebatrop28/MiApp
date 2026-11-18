@@ -11,6 +11,7 @@ import ForgotPasswordScreen from '@/app/forgot-password';
 import NoteScreen from '@/app/note/[id]';
 import SignInScreen from '@/app/sign-in';
 import SignUpScreen from '@/app/sign-up';
+import UpdatesScreen from '@/app/updates';
 import { notesStorageKey } from '@/services/notes-storage';
 import { DEFAULT_SETTINGS, SETTINGS_STORAGE_KEY } from '@/services/settings-storage';
 
@@ -55,6 +56,7 @@ const routes = {
   'sign-in': SignInScreen,
   'sign-up': SignUpScreen,
   'forgot-password': ForgotPasswordScreen,
+  updates: UpdatesScreen,
   '+not-found': () => null,
 };
 
@@ -192,5 +194,26 @@ describe('cuentas', () => {
 
     await act(() => mockAuth.signOut());
     expect(await screen.findByTestId('sign-in-screen')).toBeTruthy();
+  });
+});
+
+describe('actualizaciones', () => {
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+    mockAuth.reset();
+    mockAuth.setUser(TEST_USER);
+  });
+
+  it('abre Actualizaciones desde Ajustes y guarda la preferencia automática', async () => {
+    await renderRouter(routes, { initialUrl: '/settings' });
+    await fireEvent.press(await screen.findByRole('button', { name: 'Actualizaciones' }));
+    await waitFor(() => expect(screen).toHavePathname('/updates'));
+    expect(await screen.findByTestId('updates-screen')).toBeTruthy();
+
+    await fireEvent(screen.getByTestId('switch-auto-update'), 'valueChange', false);
+    await waitFor(async () => {
+      const stored = JSON.parse((await AsyncStorage.getItem(SETTINGS_STORAGE_KEY)) ?? '{}');
+      expect(stored.autoUpdate).toBe(false);
+    });
   });
 });

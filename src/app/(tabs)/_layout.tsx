@@ -1,10 +1,12 @@
 import { NativeTabs } from 'expo-router/native-tabs';
 
+import { useAutoUpdate } from '@/hooks/use-auto-update';
 import { useAppTheme } from '@/hooks/use-theme';
 
 /** Barra de pestañas nativa (Material 3 en Android). */
 export default function TabsLayout() {
   const { colors } = useAppTheme();
+  useAutoUpdate();
 
   return (
     <NativeTabs

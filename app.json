@@ -65,6 +65,13 @@
       },
       "googleWebClientId": "1085418371941-tpfoo28991rf3bovvv04ukel7t4860lg.apps.googleusercontent.com"
     },
-    "owner": "sebatrop"
+    "owner": "sebatrop",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/56dd7e97-df8d-4fcf-a536-e5d66f0e5285",
+      "checkAutomatically": "NEVER"
+    }
   }
 }
