@@ -155,6 +155,9 @@ describe('cuentas', () => {
 
     expect(await screen.findByText('Novedad de prueba')).toBeTruthy();
     expect(mockAuth.signUpWithEmail).toHaveBeenCalledWith('Luis', 'luis@ejemplo.com', 'secreto1');
+
+    await act(() => router.navigate('/settings'));
+    expect(await screen.findByText('Luis')).toBeTruthy();
   });
 
   it('muestra el error si la contraseña es incorrecta y entra con la correcta', async () => {

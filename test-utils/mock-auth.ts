@@ -47,7 +47,8 @@ export const signUpWithEmail = jest.fn(async (name: string, email: string, passw
   if (accounts.has(email)) throw new AuthError('Ya existe una cuenta con este correo. Inicia sesión.');
   const user: AuthUser = { uid: `uid-${email}`, email, displayName: name, emailVerified: false, provider: 'password' };
   addAccount(email, password, user);
-  setUser(user);
+  // Como Firebase: la sesión se publica antes de guardar el nombre en el perfil.
+  setUser({ ...user, displayName: null });
   return user;
 });
 

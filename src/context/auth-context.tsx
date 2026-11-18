@@ -1,4 +1,4 @@
-import { createContext, use, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
+import { createContext, use, useCallback, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
 
 import * as auth from '@/services/auth';
 import type { AuthUser } from '@/services/auth';
@@ -31,17 +31,24 @@ export function AuthProvider({ children }: PropsWithChildren) {
     [],
   );
 
+  // onAuthStateChanged no avisa de cambios de perfil: el nombre se guarda después de crear la cuenta.
+  const signUpWithEmail = useCallback<AuthContextValue['signUpWithEmail']>(async (name, email, password) => {
+    const created = await auth.signUpWithEmail(name, email, password);
+    setUser(created);
+    return created;
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       status,
       signInWithEmail: auth.signInWithEmail,
-      signUpWithEmail: auth.signUpWithEmail,
+      signUpWithEmail,
       signInWithGoogle: auth.signInWithGoogle,
       sendPasswordReset: auth.sendPasswordReset,
       signOut: auth.signOut,
     }),
-    [user, status],
+    [user, status, signUpWithEmail],
   );
 
   return <AuthContext value={value}>{children}</AuthContext>;
