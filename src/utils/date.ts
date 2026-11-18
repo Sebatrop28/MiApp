@@ -6,9 +6,10 @@ export function formatNoteDate(timestamp: number, now: number = Date.now()): str
   const time = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
   const startOfToday = new Date(now);
   startOfToday.setHours(0, 0, 0, 0);
-  const dayMs = 24 * 60 * 60 * 1000;
+  const startOfYesterday = new Date(startOfToday);
+  startOfYesterday.setDate(startOfYesterday.getDate() - 1);
 
   if (timestamp >= startOfToday.getTime()) return `Hoy, ${time}`;
-  if (timestamp >= startOfToday.getTime() - dayMs) return `Ayer, ${time}`;
+  if (timestamp >= startOfYesterday.getTime()) return `Ayer, ${time}`;
   return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}, ${time}`;
 }
