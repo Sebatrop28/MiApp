@@ -1,7 +1,9 @@
 import * as Updates from 'expo-updates';
+import { Platform } from 'react-native';
 
 /** Las actualizaciones solo funcionan en el APK/AAB de EAS (no en Expo Go, desarrollo ni web). */
-export const updatesSupported = Updates.isEnabled;
+// En web `isEnabled` es `true` pero el módulo no descarga actualizaciones.
+export const updatesSupported = Platform.OS !== 'web' && Updates.isEnabled;
 
 export interface CurrentUpdateInfo {
   /** `true` si se ejecuta el código incluido en el APK (sin actualizaciones descargadas). */
