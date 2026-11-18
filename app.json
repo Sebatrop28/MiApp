@@ -56,12 +56,12 @@
         "projectId": "56dd7e97-df8d-4fcf-a536-e5d66f0e5285"
       },
       "firebase": {
-        "apiKey": "",
-        "authDomain": "",
-        "projectId": "",
-        "storageBucket": "",
-        "messagingSenderId": "",
-        "appId": ""
+        "apiKey": "AIzaSyBDCl-4XDBZcj7aLXW5GozIFue_hBBTpFE",
+        "authDomain": "app-de-particion.firebaseapp.com",
+        "projectId": "app-de-particion",
+        "storageBucket": "app-de-particion.firebasestorage.app",
+        "messagingSenderId": "1085418371941",
+        "appId": "1:1085418371941:web:24b8673c397b29d3cbbf8c"
       },
       "googleWebClientId": "1085418371941-tpfoo28991rf3bovvv04ukel7t4860lg.apps.googleusercontent.com"
     },
