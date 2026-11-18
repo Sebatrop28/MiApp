@@ -1,6 +1,6 @@
 # MiApp
 
-Base profesional de una aplicación Android construida con **React Native + Expo (SDK 58) + TypeScript** y navegación con **Expo Router**. Incluye pantalla de inicio, bloc de notas, ajustes e información de la app, tema claro/oscuro persistente, estados de carga y error, pruebas automatizadas y configuración de **EAS Build** para generar un APK instalable.
+Base profesional de una aplicación Android construida con **React Native + Expo (SDK 58) + TypeScript** y navegación con **Expo Router**. Incluye cuentas de usuario con **Firebase Auth** (correo y Google), pantalla de inicio, bloc de notas, ajustes e información de la app, tema claro/oscuro persistente, estados de carga y error, pruebas automatizadas y configuración de **EAS Build** para generar un APK instalable.
 
 ---
 
@@ -9,14 +9,15 @@ Base profesional de una aplicación Android construida con **React Native + Expo
 1. [Características](#características)
 2. [Requisitos](#requisitos)
 3. [Instalación](#instalación)
-4. [Ejecutar en desarrollo](#ejecutar-en-desarrollo)
-5. [Comprobaciones de calidad](#comprobaciones-de-calidad)
-6. [Generar el APK con EAS Build](#generar-el-apk-con-eas-build)
-7. [Compilar el APK localmente (opcional)](#compilar-el-apk-localmente-opcional)
-8. [Despliegue](#despliegue)
-9. [Estructura del proyecto](#estructura-del-proyecto)
-10. [Guía de desarrollo](#guía-de-desarrollo)
-11. [Solución de problemas](#solución-de-problemas)
+4. [Configurar Firebase (cuentas de usuario)](#configurar-firebase-cuentas-de-usuario)
+5. [Ejecutar en desarrollo](#ejecutar-en-desarrollo)
+6. [Comprobaciones de calidad](#comprobaciones-de-calidad)
+7. [Generar el APK con EAS Build](#generar-el-apk-con-eas-build)
+8. [Compilar el APK localmente (opcional)](#compilar-el-apk-localmente-opcional)
+9. [Despliegue](#despliegue)
+10. [Estructura del proyecto](#estructura-del-proyecto)
+11. [Guía de desarrollo](#guía-de-desarrollo)
+12. [Solución de problemas](#solución-de-problemas)
 
 ---
 
@@ -26,11 +27,12 @@ Base profesional de una aplicación Android construida con **React Native + Expo
 | --- | --- |
 | Navegación | Expo Router con barra de pestañas nativa (Material 3 en Android): **Inicio**, **Notas**, **Ajustes** e **Información**. Rutas tipadas (`typedRoutes`). Pantalla 404 personalizada. |
 | Diseño | Sistema de diseño propio (`src/constants/theme.ts`): colores claro/oscuro, espaciado, radios y tipografía. Iconos Material Symbols vía `expo-symbols`. Contenido con ancho máximo para tablets. |
-| Notas | Bloc de notas: crea, edita y elimina notas. Todo lo que escribes se guarda automáticamente en el dispositivo (AsyncStorage), aunque cierres la app. La primera línea se usa como título; las notas vacías se descartan al salir. |
+| Cuentas | Hay que iniciar sesión para usar la app. Registro con nombre, correo y contraseña (se envía un correo de verificación), inicio de sesión con correo o con **Google** (Android), recuperación de contraseña y cierre de sesión en *Ajustes*. La sesión se recuerda entre aperturas. Firebase Auth. |
+| Notas | Bloc de notas: crea, edita y elimina notas. Todo lo que escribes se guarda automáticamente en el dispositivo (AsyncStorage), aunque cierres la app. Cada cuenta tiene sus propias notas en ese dispositivo. La primera línea se usa como título; las notas vacías se descartan al salir. |
 | Ajustes | Tema (Sistema / Claro / Oscuro), notificaciones y modo de prueba de errores. Se guardan en el dispositivo con AsyncStorage. |
 | Estados | Esqueletos de carga, indicadores, «deslizar para actualizar», mensajes de error con botón **Reintentar**, avisos no bloqueantes y `ErrorBoundary` global. |
 | Información | Versión, compilación, identificador, fecha de instalación, datos del dispositivo y tecnologías (`expo-application`, `expo-device`, `expo-constants`). |
-| Calidad | TypeScript estricto, ESLint (`eslint-config-expo`), Jest + React Native Testing Library (22 pruebas). |
+| Calidad | TypeScript estricto, ESLint (`eslint-config-expo`), Jest + React Native Testing Library (38 pruebas). |
 | Compilación | `eas.json` con perfil `preview` (APK) y `production` (AAB para Google Play). |
 
 > **Probar los mensajes de error:** en *Ajustes → Desarrollo* activa **Simular errores de red** y vuelve a *Inicio*: la sección «Novedades» mostrará el error y el botón *Reintentar*.
@@ -56,6 +58,44 @@ npm install
 ```
 
 > Para añadir nuevas dependencias usa siempre `npx expo install <paquete>`: elige la versión compatible con el SDK de Expo.
+
+---
+
+## Configurar Firebase (cuentas de usuario)
+
+La app usa **Firebase Authentication**. Necesitas un proyecto de Firebase propio (gratis). Los valores que se copian a `app.json` son públicos (identifican la app), no son contraseñas.
+
+1. Entra en [console.firebase.google.com](https://console.firebase.google.com), pulsa **Crear un proyecto** y sigue los pasos (Google Analytics es opcional).
+2. **Authentication → Comenzar → Método de inicio de sesión**: activa **Correo electrónico/contraseña** y **Google** (elige tu correo de asistencia y guarda).
+3. **Configuración del proyecto (⚙️) → General → Tus apps → icono web `</>`**: registra una app web (por ejemplo «MiApp web»). Copia los valores de `firebaseConfig` en `app.json`:
+
+   ```json
+   "extra": {
+     "firebase": {
+       "apiKey": "AIza...",
+       "authDomain": "tu-proyecto.firebaseapp.com",
+       "projectId": "tu-proyecto",
+       "storageBucket": "tu-proyecto.firebasestorage.app",
+       "messagingSenderId": "1234567890",
+       "appId": "1:1234567890:web:abc123"
+     },
+     "googleWebClientId": "1234567890-xxxx.apps.googleusercontent.com"
+   }
+   ```
+
+4. **`googleWebClientId`** (solo para Google): en **Authentication → Método de inicio de sesión → Google → Configuración del SDK web**, copia el **ID de cliente web**.
+5. **Huella SHA‑1 (solo para Google)**: en **Configuración del proyecto → General → Tus apps**, añade una app **Android** con el paquete `com.sebatrop28.miapp` y pega la huella SHA‑1 del certificado con el que EAS firma tu APK. Para verla, en PowerShell dentro de la carpeta del proyecto:
+
+   ```powershell
+   npx eas-cli@latest credentials -p android
+   ```
+
+   Elige el perfil `preview` y copia el valor **SHA1 Fingerprint**. Si luego publicas en Google Play, añade también la SHA‑1 de **Play Console → Integridad de la app**. No hace falta descargar `google-services.json`.
+6. Haz commit de `app.json` y genera el APK de nuevo (`npm run build:apk`).
+
+> - Sin estos valores la app abre la pantalla de inicio de sesión con un aviso y no deja entrar.
+> - El botón **Continuar con Google** solo aparece en Android y cuando `googleWebClientId` está completo. Usa código nativo, así que **no funciona en Expo Go**: pruébalo con el APK de EAS (`npm run build:apk`) o con `npm run android`.
+> - Las notas creadas antes de existir las cuentas pasan a la primera cuenta que inicie sesión en ese teléfono.
 
 ---
 
@@ -173,6 +213,7 @@ Para publicar cambios de JavaScript sin recompilar, configura EAS Update: `npx e
 ```
 MiApp/
 ├── __tests__/                 # Pruebas Jest (*-test.ts / *-test.tsx)
+├── test-utils/                # Sustitutos para pruebas (p. ej. Firebase Auth en memoria)
 ├── assets/images/             # Icono, icono adaptable y splash
 ├── src/
 │   ├── app/                   # Rutas de Expo Router (cada archivo = pantalla)
@@ -184,14 +225,19 @@ MiApp/
 │   │   │   ├── notes.tsx      # Notas       → /notes
 │   │   │   ├── settings.tsx   # Ajustes     → /settings
 │   │   │   └── about.tsx      # Información → /about
-│   │   └── note/[id].tsx      # Editor de una nota → /note/:id
+│   │   ├── note/[id].tsx      # Editor de una nota → /note/:id
+│   │   ├── sign-in.tsx        # Iniciar sesión → /sign-in
+│   │   ├── sign-up.tsx        # Crear cuenta → /sign-up
+│   │   └── forgot-password.tsx # Recuperar contraseña → /forgot-password
 │   ├── components/
-│   │   ├── ui/                # Componentes base: Screen, Card, Button, ListRow, Icon...
+│   │   ├── auth/              # Componentes de las pantallas de cuenta
+│   │   ├── ui/                # Componentes base: Screen, Card, Button, ListRow, TextField, Icon...
 │   │   └── feedback/          # LoadingState, SkeletonList, ErrorState, Banner
+│   ├── config/                # Lectura de la configuración de Firebase (app.json → extra)
 │   ├── constants/theme.ts     # Tokens de diseño (colores, espaciado, tipografía)
-│   ├── context/               # SettingsProvider (ajustes) y NotesProvider (notas)
+│   ├── context/               # SettingsProvider (ajustes), AuthProvider (sesión) y NotesProvider (notas)
 │   ├── hooks/                 # useAppTheme, useAsync
-│   ├── services/              # Acceso a datos: almacenamiento, contenido, info de la app
+│   ├── services/              # Acceso a datos: Firebase Auth, Google, almacenamiento, contenido, info de la app
 │   └── utils/                 # Funciones puras (errores, saludo, delay)
 ├── app.json                   # Configuración de Expo (nombre, paquete Android, iconos)
 ├── eas.json                   # Perfiles de EAS Build / Submit
@@ -224,4 +270,7 @@ Las carpetas `android/` e `ios/` **no se versionan**: se generan con `npx expo p
 | Caché de Metro corrupta | `npx expo start -c`. |
 | `eas build` pide `projectId` | Ejecuta `npx eas-cli@latest init` y haz commit de `app.json`. |
 | El APK no se instala | Desinstala versiones previas firmadas con otra clave y habilita «orígenes desconocidos». |
+| «Firebase no está configurado» al iniciar sesión | Completa `extra.firebase` en `app.json` (ver [Configurar Firebase](#configurar-firebase-cuentas-de-usuario)) y vuelve a compilar. |
+| Google: error `DEVELOPER_ERROR` | La SHA‑1 del APK no está en Firebase o `googleWebClientId` es incorrecto. |
+| «Este método de inicio de sesión no está activado» | Activa el proveedor en *Firebase → Authentication → Método de inicio de sesión*. |
 | Gradle falla en local | Verifica JDK 17, `ANDROID_HOME` y vuelve a generar con `npx expo prebuild --clean`. |

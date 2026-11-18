@@ -1,10 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
-  NOTES_STORAGE_KEY,
+  LEGACY_NOTES_STORAGE_KEY,
   getNotePreview,
   getNoteTitle,
   loadNotes,
+  notesStorageKey,
   sanitizeNotes,
   saveNotes,
   type Note,
@@ -19,19 +20,31 @@ describe('notes-storage', () => {
   });
 
   it('devuelve una lista vacía si no hay notas', async () => {
-    await expect(loadNotes()).resolves.toEqual([]);
+    await expect(loadNotes('u1')).resolves.toEqual([]);
   });
 
   it('guarda y recupera las notas', async () => {
-    await saveNotes([note]);
-    await expect(loadNotes()).resolves.toEqual([note]);
+    await saveNotes('u1', [note]);
+    await expect(loadNotes('u1')).resolves.toEqual([note]);
   });
 
   it('ignora JSON corrupto y entradas inválidas', async () => {
-    await AsyncStorage.setItem(NOTES_STORAGE_KEY, '{no-es-json');
-    await expect(loadNotes()).resolves.toEqual([]);
+    await AsyncStorage.setItem(notesStorageKey('u1'), '{no-es-json');
+    await expect(loadNotes('u1')).resolves.toEqual([]);
     expect(sanitizeNotes([note, { id: 1 }, null, 'x'])).toEqual([note]);
     expect(sanitizeNotes({})).toEqual([]);
+  });
+
+  it('separa las notas de cada cuenta', async () => {
+    await saveNotes('u1', [note]);
+    await expect(loadNotes('u2')).resolves.toEqual([]);
+  });
+
+  it('pasa las notas anteriores a las cuentas a la primera cuenta que entra', async () => {
+    await AsyncStorage.setItem(LEGACY_NOTES_STORAGE_KEY, JSON.stringify([note]));
+    await expect(loadNotes('u1')).resolves.toEqual([note]);
+    expect(await AsyncStorage.getItem(LEGACY_NOTES_STORAGE_KEY)).toBeNull();
+    await expect(loadNotes('u2')).resolves.toEqual([]);
   });
 
   it('obtiene título y vista previa a partir del texto', () => {

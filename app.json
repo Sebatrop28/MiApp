@@ -54,7 +54,16 @@
       },
       "eas": {
         "projectId": "56dd7e97-df8d-4fcf-a536-e5d66f0e5285"
-      }
+      },
+      "firebase": {
+        "apiKey": "",
+        "authDomain": "",
+        "projectId": "",
+        "storageBucket": "",
+        "messagingSenderId": "",
+        "appId": ""
+      },
+      "googleWebClientId": ""
     },
     "owner": "sebatrop"
   }
