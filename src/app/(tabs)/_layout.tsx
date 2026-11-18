@@ -16,6 +16,10 @@ export default function TabsLayout() {
         <NativeTabs.Trigger.Label>Inicio</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf={{ default: 'house', selected: 'house.fill' }} md="home" />
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="notes">
+        <NativeTabs.Trigger.Label>Notas</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf={{ default: 'note.text', selected: 'note.text' }} md="sticky_note_2" />
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="settings">
         <NativeTabs.Trigger.Label>Ajustes</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="gearshape" md="settings" />

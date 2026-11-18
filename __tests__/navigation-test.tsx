@@ -1,10 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
+import { router } from 'expo-router';
+import { act, fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
 
 import AboutScreen from '@/app/(tabs)/about';
 import HomeScreen from '@/app/(tabs)/index';
+import NotesScreen from '@/app/(tabs)/notes';
 import SettingsScreen from '@/app/(tabs)/settings';
 import RootLayout from '@/app/_layout';
+import NoteScreen from '@/app/note/[id]';
+import { NOTES_STORAGE_KEY } from '@/services/notes-storage';
 import { DEFAULT_SETTINGS, SETTINGS_STORAGE_KEY } from '@/services/settings-storage';
 
 jest.mock('@/services/app-info', () => ({
@@ -37,6 +41,8 @@ const routes = {
   '(tabs)/index': HomeScreen,
   '(tabs)/settings': SettingsScreen,
   '(tabs)/about': AboutScreen,
+  '(tabs)/notes': NotesScreen,
+  'note/[id]': NoteScreen,
   '+not-found': () => null,
 };
 
@@ -72,5 +78,36 @@ describe('navegación', () => {
 
     expect(await screen.findByText('No se pudo cargar el contenido')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Reintentar' })).toBeTruthy();
+  });
+
+  it('crea una nota, la guarda y la muestra en la lista', async () => {
+    await renderRouter(routes, { initialUrl: '/notes' });
+    expect(await screen.findByText('Aún no tienes notas')).toBeTruthy();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Nueva nota' }));
+    await waitFor(() => expect(screen).toHavePathname(expect.stringMatching(/^\/note\//)));
+
+    await fireEvent.changeText(await screen.findByTestId('note-input'), 'Lista de compras\nleche y pan');
+
+    await waitFor(async () => {
+      const stored = JSON.parse((await AsyncStorage.getItem(NOTES_STORAGE_KEY)) ?? '[]');
+      expect(stored).toHaveLength(1);
+      expect(stored[0].text).toBe('Lista de compras\nleche y pan');
+    });
+
+    await act(() => router.back());
+    await waitFor(() => expect(screen).toHavePathname('/notes'));
+    expect(await screen.findByText('Lista de compras')).toBeTruthy();
+    expect(screen.getByText('leche y pan')).toBeTruthy();
+  });
+
+  it('carga las notas guardadas al abrir la app', async () => {
+    await AsyncStorage.setItem(
+      NOTES_STORAGE_KEY,
+      JSON.stringify([{ id: 'n1', text: 'Nota guardada\ncontenido', createdAt: 1, updatedAt: 1 }]),
+    );
+    await renderRouter(routes, { initialUrl: '/notes' });
+    expect(await screen.findByText('Nota guardada')).toBeTruthy();
+    expect(screen.getByText('1 nota guardada')).toBeTruthy();
   });
 });

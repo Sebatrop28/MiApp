@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ErrorState } from '@/components/feedback/error-state';
 import { Colors, Spacing } from '@/constants/theme';
+import { NotesProvider } from '@/context/notes-context';
 import { SettingsProvider, useSettings } from '@/context/settings-context';
 import { useAppTheme } from '@/hooks/use-theme';
 
@@ -63,6 +64,15 @@ function RootNavigator() {
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen
+          name="note/[id]"
+          options={{
+            headerShown: true,
+            title: 'Nota',
+            headerStyle: { backgroundColor: colors.surface },
+            headerTintColor: colors.text,
+          }}
+        />
         <Stack.Screen name="+not-found" options={{ headerShown: true, title: 'No encontrada' }} />
       </Stack>
     </ThemeProvider>
@@ -73,7 +83,9 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <SettingsProvider>
-        <RootNavigator />
+        <NotesProvider>
+          <RootNavigator />
+        </NotesProvider>
       </SettingsProvider>
     </SafeAreaProvider>
   );

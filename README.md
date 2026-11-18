@@ -1,6 +1,6 @@
 # MiApp
 
-Base profesional de una aplicación Android construida con **React Native + Expo (SDK 58) + TypeScript** y navegación con **Expo Router**. Incluye pantalla de inicio, ajustes e información de la app, tema claro/oscuro persistente, estados de carga y error, pruebas automatizadas y configuración de **EAS Build** para generar un APK instalable.
+Base profesional de una aplicación Android construida con **React Native + Expo (SDK 58) + TypeScript** y navegación con **Expo Router**. Incluye pantalla de inicio, bloc de notas, ajustes e información de la app, tema claro/oscuro persistente, estados de carga y error, pruebas automatizadas y configuración de **EAS Build** para generar un APK instalable.
 
 ---
 
@@ -24,8 +24,9 @@ Base profesional de una aplicación Android construida con **React Native + Expo
 
 | Área | Detalle |
 | --- | --- |
-| Navegación | Expo Router con barra de pestañas nativa (Material 3 en Android): **Inicio**, **Ajustes** e **Información**. Rutas tipadas (`typedRoutes`). Pantalla 404 personalizada. |
+| Navegación | Expo Router con barra de pestañas nativa (Material 3 en Android): **Inicio**, **Notas**, **Ajustes** e **Información**. Rutas tipadas (`typedRoutes`). Pantalla 404 personalizada. |
 | Diseño | Sistema de diseño propio (`src/constants/theme.ts`): colores claro/oscuro, espaciado, radios y tipografía. Iconos Material Symbols vía `expo-symbols`. Contenido con ancho máximo para tablets. |
+| Notas | Bloc de notas: crea, edita y elimina notas. Todo lo que escribes se guarda automáticamente en el dispositivo (AsyncStorage), aunque cierres la app. La primera línea se usa como título; las notas vacías se descartan al salir. |
 | Ajustes | Tema (Sistema / Claro / Oscuro), notificaciones y modo de prueba de errores. Se guardan en el dispositivo con AsyncStorage. |
 | Estados | Esqueletos de carga, indicadores, «deslizar para actualizar», mensajes de error con botón **Reintentar**, avisos no bloqueantes y `ErrorBoundary` global. |
 | Información | Versión, compilación, identificador, fecha de instalación, datos del dispositivo y tecnologías (`expo-application`, `expo-device`, `expo-constants`). |
@@ -80,7 +81,7 @@ npm run android    # compila la app nativa y la instala en un emulador/dispositi
 | `npm run check` | Ejecuta las tres anteriores en orden. |
 | `npm run doctor` | Diagnostica la configuración y versiones con `expo-doctor`. |
 
-Las pruebas están en `__tests__/` (archivos `*-test.ts(x)`) y cubren utilidades, almacenamiento de ajustes, servicio de contenido, el hook `useAsync`, componentes de estado y la navegación entre pantallas.
+Las pruebas están en `__tests__/` (archivos `*-test.ts(x)`) y cubren utilidades, almacenamiento de ajustes y notas, servicio de contenido, el hook `useAsync`, componentes de estado y la navegación entre pantallas.
 
 ---
 
@@ -177,16 +178,18 @@ MiApp/
 │   ├── app/                   # Rutas de Expo Router (cada archivo = pantalla)
 │   │   ├── _layout.tsx        # Layout raíz: proveedores, tema, Stack, ErrorBoundary, splash
 │   │   ├── +not-found.tsx     # Pantalla 404
-│   │   └── (tabs)/            # Grupo de pestañas (no aparece en la URL)
-│   │       ├── _layout.tsx    # Barra de pestañas nativa
-│   │       ├── index.tsx      # Inicio      → /
-│   │       ├── settings.tsx   # Ajustes     → /settings
-│   │       └── about.tsx      # Información → /about
+│   │   ├── (tabs)/            # Grupo de pestañas (no aparece en la URL)
+│   │   │   ├── _layout.tsx    # Barra de pestañas nativa
+│   │   │   ├── index.tsx      # Inicio      → /
+│   │   │   ├── notes.tsx      # Notas       → /notes
+│   │   │   ├── settings.tsx   # Ajustes     → /settings
+│   │   │   └── about.tsx      # Información → /about
+│   │   └── note/[id].tsx      # Editor de una nota → /note/:id
 │   ├── components/
 │   │   ├── ui/                # Componentes base: Screen, Card, Button, ListRow, Icon...
 │   │   └── feedback/          # LoadingState, SkeletonList, ErrorState, Banner
 │   ├── constants/theme.ts     # Tokens de diseño (colores, espaciado, tipografía)
-│   ├── context/               # SettingsProvider (estado global de ajustes)
+│   ├── context/               # SettingsProvider (ajustes) y NotesProvider (notas)
 │   ├── hooks/                 # useAppTheme, useAsync
 │   ├── services/              # Acceso a datos: almacenamiento, contenido, info de la app
 │   └── utils/                 # Funciones puras (errores, saludo, delay)
