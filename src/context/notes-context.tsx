@@ -33,6 +33,9 @@ export function NotesProvider({ children }: PropsWithChildren) {
   const [error, setError] = useState<string | null>(null);
   const notesRef = useRef<Note[]>([]);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Si la carga falla no se escribe nada, para no sobrescribir las notas guardadas. */
+  const canPersist = useRef(false);
+  const dirty = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -40,10 +43,13 @@ export function NotesProvider({ children }: PropsWithChildren) {
       .then((loaded) => {
         if (cancelled) return;
         notesRef.current = loaded;
+        canPersist.current = true;
         setNotes(loaded);
       })
       .catch(() => {
-        if (!cancelled) setError('No se pudieron cargar tus notas.');
+        if (!cancelled) {
+          setError('No se pudieron cargar tus notas. Los cambios no se guardarán hasta reiniciar la app.');
+        }
       })
       .finally(() => {
         if (!cancelled) setStatus('ready');
@@ -54,12 +60,16 @@ export function NotesProvider({ children }: PropsWithChildren) {
   }, []);
 
   const flush = useCallback(async () => {
-    if (saveTimer.current === null) return;
-    clearTimeout(saveTimer.current);
-    saveTimer.current = null;
+    if (saveTimer.current !== null) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    if (!dirty.current || !canPersist.current) return;
+    dirty.current = false;
     try {
       await saveNotes(notesRef.current);
     } catch (e) {
+      dirty.current = true;
       setError(`No se pudo guardar la nota: ${toErrorMessage(e)}`);
     }
   }, []);
@@ -67,6 +77,7 @@ export function NotesProvider({ children }: PropsWithChildren) {
   const commit = useCallback(
     (next: Note[]) => {
       notesRef.current = next;
+      dirty.current = true;
       setNotes(next);
       if (saveTimer.current !== null) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => void flush(), SAVE_DELAY_MS);
