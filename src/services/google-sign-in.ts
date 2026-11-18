@@ -1,18 +1,28 @@
-import { GoogleSignin, isCancelledResponse, isErrorWithCode, statusCodes } from '@react-native-google-signin/google-signin';
-
 import { googleWebClientId } from '@/config/firebase-config';
 
-let configured = false;
+type GoogleSignInModule = typeof import('@react-native-google-signin/google-signin');
+
+let googleModule: GoogleSignInModule | null = null;
+
+/**
+ * Se carga bajo demanda: el módulo nativo no existe en Expo Go y cargarlo al inicio
+ * impediría abrir la app (y el inicio de sesión con correo).
+ */
+async function loadGoogleSignIn(): Promise<GoogleSignInModule> {
+  if (!googleModule) {
+    const loaded = await import('@react-native-google-signin/google-signin');
+    loaded.GoogleSignin.configure({ webClientId: googleWebClientId });
+    googleModule = loaded;
+  }
+  return googleModule;
+}
 
 /**
  * Abre el selector de cuentas de Google y devuelve el `idToken` para Firebase,
  * o `null` si la persona cancela.
  */
 export async function getGoogleIdToken(): Promise<string | null> {
-  if (!configured) {
-    GoogleSignin.configure({ webClientId: googleWebClientId });
-    configured = true;
-  }
+  const { GoogleSignin, isCancelledResponse, isErrorWithCode, statusCodes } = await loadGoogleSignIn();
   try {
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
     const response = await GoogleSignin.signIn();
@@ -33,6 +43,6 @@ export async function getGoogleIdToken(): Promise<string | null> {
 }
 
 export async function signOutFromGoogle(): Promise<void> {
-  if (!configured) return;
-  await GoogleSignin.signOut().catch(() => {});
+  if (!googleModule) return;
+  await googleModule.GoogleSignin.signOut().catch(() => {});
 }
