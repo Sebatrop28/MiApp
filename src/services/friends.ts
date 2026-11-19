@@ -13,7 +13,7 @@ import {
 } from 'firebase/firestore';
 
 import { isFirebaseConfigured } from '@/config/firebase-config';
-import { friendRequestId, friendshipId, normalizeUsername } from '@/utils/username';
+import { DISPLAY_NAME_MAX_LENGTH, friendRequestId, friendshipId, normalizeUsername } from '@/utils/username';
 
 import { getFirebaseDb } from './firebase';
 
@@ -147,7 +147,11 @@ export function createProfile(uid: string, username: string, displayName: string
   return run(async () => {
     const db = getFirebaseDb();
     const name = normalizeUsername(username);
-    const profile: UserProfile = { uid, username: name, displayName: displayName.trim() || name };
+    const profile: UserProfile = {
+      uid,
+      username: name,
+      displayName: displayName.trim().slice(0, DISPLAY_NAME_MAX_LENGTH).trim() || name,
+    };
     await runTransaction(db, async (tx) => {
       const taken = await tx.get(doc(db, 'usernames', name));
       if (taken.exists()) throw new FriendsError('Ese nombre de usuario ya está en uso. Prueba con otro.');
