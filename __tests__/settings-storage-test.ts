@@ -19,7 +19,7 @@ describe('settings-storage', () => {
   });
 
   it('guarda y recupera los ajustes', async () => {
-    const custom = { themeMode: 'dark' as const, notificationsEnabled: false, simulateNetworkErrors: true };
+    const custom = { themeMode: 'dark' as const, notificationsEnabled: false, autoUpdate: false, simulateNetworkErrors: true };
     await saveSettings(custom);
     await expect(loadSettings()).resolves.toEqual(custom);
   });

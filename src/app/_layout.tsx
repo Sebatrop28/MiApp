@@ -78,6 +78,15 @@ function RootNavigator() {
               headerTintColor: colors.text,
             }}
           />
+          <Stack.Screen
+            name="updates"
+            options={{
+              headerShown: true,
+              title: 'Actualizaciones',
+              headerStyle: { backgroundColor: colors.surface },
+              headerTintColor: colors.text,
+            }}
+          />
         </Stack.Protected>
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="sign-in" />
