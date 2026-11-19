@@ -122,7 +122,8 @@ Toca un amigo en la pestaña **Amigos** para abrir el chat. Los mensajes viajan 
   ```json
   "webrtc": { "iceServers": [{ "urls": "turn:tu-servidor:3478", "username": "usuario", "credential": "clave" }] }
   ```
-- WebRTC es código nativo: **no funciona en Expo Go**. Hace falta el APK (`npm run build:apk`). Al agregarlo, la versión de la app pasó a `1.1.0`, así que las actualizaciones OTA nuevas solo llegan a los APK compilados desde esta versión.
+- **Imágenes:** el botón de imagen elige una foto de la galería. Se reduce a 1280 px, se comprime en JPEG y viaja en trozos por la misma conexión directa. Se guarda en la carpeta privada de la app (`Documents/chat/…`) en los dos teléfonos y no se sube a ningún servidor. Desde la web no se pueden enviar imágenes.
+- WebRTC es código nativo: **no funciona en Expo Go**. Hace falta el APK (`npm run build:apk`). Cada vez que se agregan módulos nativos sube la versión de la app (chat: `1.1.0`, imágenes: `1.2.0`), y las actualizaciones OTA nuevas solo llegan a los APK compilados con esa versión.
 
 ---
 

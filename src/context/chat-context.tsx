@@ -3,7 +3,8 @@ import { AppState } from 'react-native';
 
 import { iceServers } from '@/config/firebase-config';
 import { useFriends } from '@/context/friends-context';
-import { decodeWire, encodeWire, MAX_MESSAGE_LENGTH } from '@/services/chat-protocol';
+import { decodeWire, encodeWire, ImageAssembler, MAX_MESSAGE_LENGTH, splitChunks } from '@/services/chat-protocol';
+import { imagesSupported, prepareImage, readImageBase64, saveReceivedImage } from '@/services/chat-media';
 import { createFirestoreSignaling } from '@/services/chat-signaling';
 import {
   addReceived,
@@ -32,6 +33,10 @@ export interface ChatContextValue {
   connect: (friendUid: string) => void;
   /** Guarda el mensaje y lo envía en cuanto haya conexión. */
   sendMessage: (friendUid: string, text: string) => void;
+  /** `false` en web: las imágenes necesitan el sistema de archivos del teléfono. */
+  imagesSupported: boolean;
+  /** Comprime la imagen elegida, la guarda en el teléfono y la envía al conectar. */
+  sendImage: (friendUid: string, image: { uri: string; width: number; height: number }) => Promise<void>;
   dismissError: () => void;
 }
 
@@ -107,21 +112,53 @@ export function ChatProvider({ userId, signaling: injected, children }: ChatProv
     [ensureLoaded, userId],
   );
 
+  /** Mensajes que se están enviando por cada conexión, para no mandarlos dos veces a la vez. */
+  const inFlight = useRef(new WeakMap<PeerSession, Set<string>>());
+
+  const transmit = useCallback(async (session: PeerSession, m: ChatMessage) => {
+    const sending = inFlight.current.get(session) ?? new Set<string>();
+    inFlight.current.set(session, sending);
+    if (sending.has(m.id) || !session.isOpen) return;
+    sending.add(m.id);
+    try {
+      if (!m.image) {
+        session.send(encodeWire({ t: 'msg', id: m.id, text: m.text, sentAt: m.sentAt }));
+        return;
+      }
+      const chunks = splitChunks(await readImageBase64(m.image.uri));
+      const header = { t: 'img' as const, id: m.id, sentAt: m.sentAt, width: m.image.width, height: m.image.height, chunks: chunks.length };
+      if (!(await session.sendWhenReady(encodeWire(header)))) return;
+      for (let i = 0; i < chunks.length; i++) {
+        if (!(await session.sendWhenReady(encodeWire({ t: 'chunk', id: m.id, i, data: chunks[i] })))) return;
+      }
+    } catch {
+      setError('No se pudo enviar la imagen. Se reintentará al volver a conectar.');
+    } finally {
+      sending.delete(m.id);
+    }
+  }, []);
+
   const flush = useCallback(
     async (uid: string) => {
       await ensureLoaded(uid);
       const session = sessions.current.get(uid);
       if (!session?.isOpen) return;
       for (const m of pendingMessages(conversationsRef.current[uid] ?? [], userId)) {
-        session.send(encodeWire({ t: 'msg', id: m.id, text: m.text, sentAt: m.sentAt }));
+        await transmit(session, m);
       }
     },
-    [ensureLoaded, userId],
+    [ensureLoaded, userId, transmit],
   );
 
   const createSession = useCallback(
     (uid: string) => {
       if (!PeerConnection) return null;
+      const assembler = new ImageAssembler();
+      // Se confirma después de guardar, para no perder mensajes si la app se cierra.
+      const receive = (received: ChatMessage) =>
+        void update(uid, (messages) => addReceived(messages, received)).then(() =>
+          session.send(encodeWire({ t: 'ack', ids: [received.id] })),
+        );
       const session: PeerSession = new PeerSession(
         { PeerConnection, iceServers, signaling },
         {
@@ -133,16 +170,31 @@ export function ChatProvider({ userId, signaling: injected, children }: ChatProv
             const wire = decodeWire(data);
             if (!wire) return;
             if (wire.t === 'msg') {
-              const received: ChatMessage = { id: wire.id, from: uid, text: wire.text, sentAt: wire.sentAt, status: 'delivered' };
-              // Se confirma después de guardar, para no perder mensajes si la app se cierra.
-              void update(uid, (messages) => addReceived(messages, received)).then(() =>
-                session.send(encodeWire({ t: 'ack', ids: [wire.id] })),
-              );
+              receive({ id: wire.id, from: uid, text: wire.text, sentAt: wire.sentAt, status: 'delivered' });
+            } else if (wire.t === 'img') {
+              assembler.start(wire);
+            } else if (wire.t === 'chunk') {
+              const complete = assembler.add(wire);
+              if (!complete) return;
+              const { header, base64 } = complete;
+              saveReceivedImage(userId, uid, header.id, base64)
+                .then((imageUri) =>
+                  receive({
+                    id: header.id,
+                    from: uid,
+                    text: '',
+                    sentAt: header.sentAt,
+                    status: 'delivered',
+                    image: { uri: imageUri, width: header.width, height: header.height },
+                  }),
+                )
+                .catch(() => setError('No se pudo guardar una imagen recibida.'));
             } else {
               void update(uid, (messages) => markDelivered(messages, wire.ids, userId));
             }
           },
           onClose: () => {
+            assembler.clear();
             if (sessions.current.get(uid) === session) {
               sessions.current.delete(uid);
               setConnection(uid, 'idle');
@@ -228,11 +280,24 @@ export function ChatProvider({ userId, signaling: injected, children }: ChatProv
       const message: ChatMessage = { id: createMessageId(), from: userId, text: trimmed, sentAt: Date.now(), status: 'pending' };
       void update(uid, (messages) => [...messages, message]).then(() => {
         const session = sessions.current.get(uid);
-        if (session?.isOpen) session.send(encodeWire({ t: 'msg', id: message.id, text: message.text, sentAt: message.sentAt }));
+        if (session?.isOpen) void transmit(session, message);
         else connect(uid);
       });
     },
-    [update, connect, userId],
+    [update, connect, userId, transmit],
+  );
+
+  const sendImage = useCallback<ChatContextValue['sendImage']>(
+    async (uid, source) => {
+      const id = createMessageId();
+      const image = await prepareImage(userId, uid, id, source);
+      const message: ChatMessage = { id, from: userId, text: '', sentAt: Date.now(), status: 'pending', image };
+      await update(uid, (messages) => [...messages, message]);
+      const session = sessions.current.get(uid);
+      if (session?.isOpen) void transmit(session, message);
+      else connect(uid);
+    },
+    [update, connect, userId, transmit],
   );
 
   const openConversation = useCallback((uid: string) => void ensureLoaded(uid), [ensureLoaded]);
@@ -247,9 +312,11 @@ export function ChatProvider({ userId, signaling: injected, children }: ChatProv
       openConversation,
       connect,
       sendMessage,
+      imagesSupported,
+      sendImage,
       dismissError,
     }),
-    [PeerConnection, conversations, connections, error, openConversation, connect, sendMessage, dismissError],
+    [PeerConnection, conversations, connections, error, openConversation, connect, sendMessage, sendImage, dismissError],
   );
 
   return <ChatContext value={value}>{children}</ChatContext>;
