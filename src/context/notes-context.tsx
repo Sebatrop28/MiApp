@@ -27,7 +27,12 @@ const NotesContext = createContext<NotesContextValue | null>(null);
  * Proveedor del bloc de notas. Carga las notas guardadas al iniciar y guarda
  * automáticamente cada cambio; también fuerza el guardado si la app pasa a segundo plano.
  */
-export function NotesProvider({ children }: PropsWithChildren) {
+export interface NotesProviderProps extends PropsWithChildren {
+  /** Cuenta dueña de las notas; al cambiar de cuenta el proveedor debe remontarse (`key`). */
+  userId: string;
+}
+
+export function NotesProvider({ userId, children }: NotesProviderProps) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [status, setStatus] = useState<NotesStatus>('loading');
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +44,7 @@ export function NotesProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     let cancelled = false;
-    loadNotes()
+    loadNotes(userId)
       .then((loaded) => {
         if (cancelled) return;
         notesRef.current = loaded;
@@ -57,7 +62,7 @@ export function NotesProvider({ children }: PropsWithChildren) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [userId]);
 
   const flush = useCallback(async () => {
     if (saveTimer.current !== null) {
@@ -67,12 +72,12 @@ export function NotesProvider({ children }: PropsWithChildren) {
     if (!dirty.current || !canPersist.current) return;
     dirty.current = false;
     try {
-      await saveNotes(notesRef.current);
+      await saveNotes(userId, notesRef.current);
     } catch (e) {
       dirty.current = true;
       setError(`No se pudo guardar la nota: ${toErrorMessage(e)}`);
     }
-  }, []);
+  }, [userId]);
 
   const commit = useCallback(
     (next: Note[]) => {

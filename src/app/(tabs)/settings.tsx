@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { Alert, Switch } from 'react-native';
 
 import { Banner } from '@/components/feedback/banner';
@@ -9,8 +10,10 @@ import { ListRow } from '@/components/ui/list-row';
 import { Screen } from '@/components/ui/screen';
 import { SegmentedControl, type SegmentedOption } from '@/components/ui/segmented-control';
 import { Section } from '@/components/ui/section';
+import { useAuth } from '@/context/auth-context';
 import { useSettings } from '@/context/settings-context';
 import { useAppTheme } from '@/hooks/use-theme';
+import { toAuthErrorMessage } from '@/services/auth-errors';
 import type { ThemeMode } from '@/services/settings-storage';
 
 const THEME_OPTIONS: readonly SegmentedOption<ThemeMode>[] = [
@@ -23,6 +26,8 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
   const { settings, status, error, updateSetting, resetSettings, dismissError } = useSettings();
+  const { user, signOut } = useAuth();
+  const [signOutError, setSignOutError] = useState<string | null>(null);
 
   const switchColors = {
     trackColor: { false: colors.border, true: colors.primary },
@@ -36,9 +41,43 @@ export default function SettingsScreen() {
     ]);
   };
 
+  const confirmSignOut = () => {
+    Alert.alert('Cerrar sesión', 'Tendrás que volver a iniciar sesión para usar la app.', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Cerrar sesión',
+        style: 'destructive',
+        onPress: () => {
+          setSignOutError(null);
+          signOut().catch((e: unknown) => setSignOutError(toAuthErrorMessage(e)));
+        },
+      },
+    ]);
+  };
+
+  const accountDetails = [
+    user?.displayName ? user.email : null,
+    user?.provider === 'google' ? 'Cuenta de Google' : user?.emailVerified === false ? 'Correo sin verificar' : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
   return (
     <Screen title="Ajustes" subtitle="Personaliza tu experiencia" testID="settings-screen">
       {error ? <Banner tone="error" message={error} onDismiss={dismissError} /> : null}
+      {signOutError ? <Banner tone="error" message={signOutError} onDismiss={() => setSignOutError(null)} /> : null}
+
+      <Section title="Cuenta">
+        <ListGroup>
+          <ListRow
+            icon="account_circle"
+            title={user?.displayName || user?.email || 'Tu cuenta'}
+            description={accountDetails || undefined}
+            testID="account-row"
+          />
+        </ListGroup>
+        <Button label="Cerrar sesión" icon="logout" variant="secondary" onPress={confirmSignOut} testID="button-sign-out" />
+      </Section>
 
       {status === 'loading' ? (
         <LoadingState message="Cargando ajustes…" />
@@ -93,6 +132,13 @@ export default function SettingsScreen() {
 
           <Section title="Más">
             <ListGroup>
+              <ListRow
+                icon="system_update"
+                title="Actualizaciones"
+                description={settings.autoUpdate ? 'Automáticas activadas' : 'Automáticas desactivadas'}
+                onPress={() => router.navigate('/updates')}
+                showChevron
+              />
               <ListRow
                 icon="info"
                 title="Información de la app"

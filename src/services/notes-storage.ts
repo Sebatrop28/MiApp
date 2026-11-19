@@ -12,7 +12,13 @@ export interface Note {
   updatedAt: number;
 }
 
-export const NOTES_STORAGE_KEY = '@miapp/notes/v1';
+/** Clave de las notas guardadas antes de existir las cuentas; se migran a la primera cuenta que inicia sesión. */
+export const LEGACY_NOTES_STORAGE_KEY = '@miapp/notes/v1';
+
+/** Cada cuenta guarda sus notas por separado en el dispositivo. */
+export function notesStorageKey(userId: string): string {
+  return `${LEGACY_NOTES_STORAGE_KEY}/${userId}`;
+}
 
 export function createNoteId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -34,9 +40,15 @@ export function sanitizeNotes(raw: unknown): Note[] {
   return Array.isArray(raw) ? raw.filter(isNote) : [];
 }
 
-export async function loadNotes(): Promise<Note[]> {
-  const stored = await AsyncStorage.getItem(NOTES_STORAGE_KEY);
-  if (stored === null) return [];
+export async function loadNotes(userId: string): Promise<Note[]> {
+  const key = notesStorageKey(userId);
+  let stored = await AsyncStorage.getItem(key);
+  if (stored === null) {
+    stored = await AsyncStorage.getItem(LEGACY_NOTES_STORAGE_KEY);
+    if (stored === null) return [];
+    await AsyncStorage.setItem(key, stored);
+    await AsyncStorage.removeItem(LEGACY_NOTES_STORAGE_KEY);
+  }
   try {
     return sanitizeNotes(JSON.parse(stored));
   } catch {
@@ -44,8 +56,8 @@ export async function loadNotes(): Promise<Note[]> {
   }
 }
 
-export async function saveNotes(notes: Note[]): Promise<void> {
-  await AsyncStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(notes));
+export async function saveNotes(userId: string, notes: Note[]): Promise<void> {
+  await AsyncStorage.setItem(notesStorageKey(userId), JSON.stringify(notes));
 }
 
 /** Primera línea no vacía de la nota, usada como título en la lista. */

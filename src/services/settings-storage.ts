@@ -9,6 +9,8 @@ export type ThemeMode = 'system' | 'light' | 'dark';
 export interface Settings {
   themeMode: ThemeMode;
   notificationsEnabled: boolean;
+  /** Descargar e instalar las actualizaciones publicadas con EAS Update al abrir la app. */
+  autoUpdate: boolean;
   /** Opción de desarrollo: fuerza fallos en las cargas de datos para probar los estados de error. */
   simulateNetworkErrors: boolean;
 }
@@ -16,6 +18,7 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   themeMode: 'system',
   notificationsEnabled: true,
+  autoUpdate: true,
   simulateNetworkErrors: false,
 };
 
@@ -40,6 +43,7 @@ export function sanitizeSettings(raw: unknown): Settings {
       typeof value.notificationsEnabled === 'boolean'
         ? value.notificationsEnabled
         : DEFAULT_SETTINGS.notificationsEnabled,
+    autoUpdate: typeof value.autoUpdate === 'boolean' ? value.autoUpdate : DEFAULT_SETTINGS.autoUpdate,
     simulateNetworkErrors:
       typeof value.simulateNetworkErrors === 'boolean'
         ? value.simulateNetworkErrors
