@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { Banner } from '@/components/feedback/banner';
 import { LoadingState } from '@/components/feedback/loading-state';
@@ -85,19 +85,12 @@ function ChooseUsername() {
 
 function FriendsContent() {
   const router = useRouter();
-  const { friends, incoming, outgoing, acceptRequest, deleteRequest, removeFriend } = useFriends();
+  const { friends, incoming, outgoing, acceptRequest, deleteRequest } = useFriends();
   const [actionError, setActionError] = useState<string | null>(null);
 
   const attempt = (action: Promise<void>) => {
     setActionError(null);
     action.catch((e: unknown) => setActionError(toFriendsErrorMessage(e)));
-  };
-
-  const confirmRemove = (friend: (typeof friends)[number]) => {
-    Alert.alert(friend.profile.displayName, `@${friend.profile.username}`, [
-      { text: 'Cerrar', style: 'cancel' },
-      { text: 'Eliminar amigo', style: 'destructive', onPress: () => attempt(removeFriend(friend)) },
-    ]);
   };
 
   return (
@@ -129,7 +122,8 @@ function FriendsContent() {
                 icon="person"
                 title={friend.profile.displayName}
                 description={`@${friend.profile.username}`}
-                onPress={() => confirmRemove(friend)}
+                onPress={() => router.push({ pathname: '/chat/[uid]', params: { uid: friend.profile.uid } })}
+                showChevron
                 testID={`friend-${friend.profile.username}`}
               />
             ))}
@@ -199,7 +193,7 @@ function EmptyFriends() {
       </View>
       <ThemedText variant="heading">Aún no tienes amigos</ThemedText>
       <ThemedText color="textSecondary" style={styles.emptyText}>
-        Toca «Añadir amigo» y busca a alguien por su nombre de usuario.
+        Toca «Añadir amigo» y busca a alguien por su nombre de usuario. Después toca su nombre para chatear.
       </ThemedText>
     </View>
   );

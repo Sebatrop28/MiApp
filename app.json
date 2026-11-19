@@ -2,7 +2,7 @@
   "expo": {
     "name": "MiApp",
     "slug": "miapp",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "miapp",
@@ -20,7 +20,10 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.sebatrop28.miapp",
-      "versionCode": 1
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.ACCESS_NETWORK_STATE"
+      ]
     },
     "web": {
       "output": "single",
