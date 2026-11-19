@@ -10,6 +10,7 @@ Base profesional de una aplicación Android construida con **React Native + Expo
 2. [Requisitos](#requisitos)
 3. [Instalación](#instalación)
 4. [Configurar Firebase (cuentas de usuario)](#configurar-firebase-cuentas-de-usuario)
+   - [Amigos: crear Firestore](#amigos-crear-firestore)
 5. [Ejecutar en desarrollo](#ejecutar-en-desarrollo)
 6. [Comprobaciones de calidad](#comprobaciones-de-calidad)
 7. [Generar el APK con EAS Build](#generar-el-apk-con-eas-build)
@@ -97,6 +98,18 @@ La app usa **Firebase Authentication**. Necesitas un proyecto de Firebase propio
 > - Sin estos valores la app abre la pantalla de inicio de sesión con un aviso y no deja entrar.
 > - El botón **Continuar con Google** solo aparece en Android y cuando `googleWebClientId` está completo. Usa código nativo, así que **no funciona en Expo Go**: pruébalo con el APK de EAS (`npm run build:apk`) o con `npm run android`.
 > - Las notas creadas antes de existir las cuentas pasan a la primera cuenta que inicie sesión en ese teléfono.
+
+### Amigos: crear Firestore
+
+La pestaña **Amigos** guarda en Cloud Firestore solo el nombre de usuario, el nombre visible, las solicitudes y las amistades. Los mensajes del chat **no** se guardan en ningún servidor.
+
+1. En la consola de Firebase abre **Bases de datos y almacenamiento → Firestore Database** y pulsa **Crear base de datos**.
+2. Elige **Edición Standard**, una ubicación cercana (por ejemplo `southamerica-east1`) y el **modo de producción**. Pulsa **Crear**.
+3. Abre la pestaña **Reglas**, borra lo que haya, pega todo el contenido de [`firestore.rules`](firestore.rules) y pulsa **Publicar**.
+
+No hace falta recompilar el APK: Firestore usa el mismo `firebaseConfig`. Si la base de datos no existe o faltan las reglas, la pestaña Amigos muestra un aviso.
+
+> Para probar las reglas en local: `npx firebase-tools emulators:start --only firestore` (requiere Java 21).
 
 ---
 

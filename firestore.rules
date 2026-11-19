@@ -1,0 +1,96 @@
+rules_version = '2';
+
+// Reglas de MiApp. Cópialas en Firebase → Firestore Database → Reglas → Publicar.
+// Solo hay perfiles, solicitudes y amistades: los mensajes del chat no se guardan en Firestore.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function me() {
+      return request.auth.uid;
+    }
+
+    function path(collectionName, id) {
+      return /databases/$(database)/documents/$(collectionName)/$(id);
+    }
+
+    function isProfile(data, uid) {
+      return data.keys().hasOnly(['uid', 'username', 'displayName'])
+        && data.uid == uid
+        && data.username is string
+        && data.displayName is string
+        && data.displayName.size() <= 60;
+    }
+
+    function storedProfile(uid) {
+      let p = get(path('profiles', uid)).data;
+      return { 'uid': p.uid, 'username': p.username, 'displayName': p.displayName };
+    }
+
+    match /profiles/{uid} {
+      allow read: if signedIn();
+      // El nombre de usuario debe quedar reservado a esta cuenta en la misma transacción.
+      allow create: if signedIn() && uid == me()
+        && request.resource.data.keys().hasOnly(['uid', 'username', 'displayName', 'createdAt'])
+        && request.resource.data.uid == uid
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() <= 60
+        && request.resource.data.createdAt is int
+        && getAfter(path('usernames', request.resource.data.username)).data.uid == uid;
+      allow update, delete: if false;
+    }
+
+    match /usernames/{name} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && name.matches('^[a-z0-9_.]{3,20}$')
+        && request.resource.data.keys().hasOnly(['uid'])
+        && request.resource.data.uid == me()
+        && !exists(path('profiles', me()));
+      allow update, delete: if false;
+    }
+
+    match /friendRequests/{id} {
+      allow read: if signedIn() && (resource.data.from == me() || resource.data.to == me());
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['from', 'to', 'fromProfile', 'toProfile', 'createdAt'])
+        && request.resource.data.from == me()
+        && request.resource.data.to != me()
+        && id == me() + '_' + request.resource.data.to
+        && request.resource.data.createdAt is int
+        && request.resource.data.fromProfile == storedProfile(me())
+        && request.resource.data.toProfile == storedProfile(request.resource.data.to)
+        && !exists(path('friendships', me() < request.resource.data.to
+          ? me() + '_' + request.resource.data.to
+          : request.resource.data.to + '_' + me()));
+      allow update: if false;
+      allow delete: if signedIn() && (resource.data.from == me() || resource.data.to == me());
+    }
+
+    match /friendships/{id} {
+      allow read: if signedIn() && me() in resource.data.members;
+      // Solo quien recibió la solicitud puede aceptarla.
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['members', 'profiles', 'createdAt'])
+        && request.resource.data.members is list
+        && request.resource.data.members.size() == 2
+        && me() in request.resource.data.members
+        && request.resource.data.members[0] < request.resource.data.members[1]
+        && id == request.resource.data.members[0] + '_' + request.resource.data.members[1]
+        && request.resource.data.createdAt is int
+        && exists(path('friendRequests', otherMember(request.resource.data.members) + '_' + me()))
+        && request.resource.data.profiles.keys().hasOnly(request.resource.data.members)
+        && isProfile(request.resource.data.profiles[me()], me())
+        && isProfile(request.resource.data.profiles[otherMember(request.resource.data.members)],
+          otherMember(request.resource.data.members));
+      allow update: if false;
+      allow delete: if signedIn() && me() in resource.data.members;
+    }
+
+    function otherMember(members) {
+      return members[0] == me() ? members[1] : members[0];
+    }
+  }
+}

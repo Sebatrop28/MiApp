@@ -3,10 +3,12 @@ import { router } from 'expo-router';
 import { act, fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
 
 import AboutScreen from '@/app/(tabs)/about';
+import FriendsScreen from '@/app/(tabs)/friends';
 import HomeScreen from '@/app/(tabs)/index';
 import NotesScreen from '@/app/(tabs)/notes';
 import SettingsScreen from '@/app/(tabs)/settings';
 import RootLayout from '@/app/_layout';
+import AddFriendScreen from '@/app/add-friend';
 import ForgotPasswordScreen from '@/app/forgot-password';
 import NoteScreen from '@/app/note/[id]';
 import SignInScreen from '@/app/sign-in';
@@ -16,6 +18,7 @@ import { notesStorageKey } from '@/services/notes-storage';
 import { DEFAULT_SETTINGS, SETTINGS_STORAGE_KEY } from '@/services/settings-storage';
 
 jest.mock('@/services/auth', () => jest.requireActual('../test-utils/mock-auth'));
+jest.mock('@/services/friends', () => jest.requireActual('../test-utils/mock-friends'));
 
 jest.mock('@/services/app-info', () => ({
   getAppInfo: jest.fn().mockResolvedValue({
@@ -39,6 +42,7 @@ jest.mock('@/services/content', () => {
 
 // Se usa un Stack en lugar de NativeTabs para que las pantallas se rendericen en el entorno de pruebas.
 const mockAuth = jest.requireMock<typeof import('../test-utils/mock-auth')>('@/services/auth');
+const mockFriends = jest.requireMock<typeof import('../test-utils/mock-friends')>('@/services/friends');
 
 const TEST_USER = { uid: 'u1', email: 'ana@ejemplo.com', displayName: 'Ana', emailVerified: true, provider: 'password' as const };
 
@@ -52,6 +56,8 @@ const routes = {
   '(tabs)/settings': SettingsScreen,
   '(tabs)/about': AboutScreen,
   '(tabs)/notes': NotesScreen,
+  '(tabs)/friends': FriendsScreen,
+  'add-friend': AddFriendScreen,
   'note/[id]': NoteScreen,
   'sign-in': SignInScreen,
   'sign-up': SignUpScreen,
@@ -64,6 +70,7 @@ describe('navegación', () => {
   beforeEach(async () => {
     await AsyncStorage.clear();
     mockAuth.reset();
+    mockFriends.reset();
     mockAuth.setUser(TEST_USER);
   });
 
@@ -125,6 +132,85 @@ describe('navegación', () => {
     await renderRouter(routes, { initialUrl: '/notes' });
     expect(await screen.findByText('Nota guardada')).toBeTruthy();
     expect(screen.getByText('1 nota guardada')).toBeTruthy();
+  });
+});
+
+describe('amigos', () => {
+  const ana = { uid: TEST_USER.uid, username: 'ana', displayName: 'Ana' };
+  const luis = { uid: 'u2', username: 'luis', displayName: 'Luis' };
+
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+    mockAuth.reset();
+    mockFriends.reset();
+    mockAuth.setUser(TEST_USER);
+  });
+
+  it('pide elegir un nombre de usuario válido y único', async () => {
+    mockFriends.addProfile({ uid: 'u3', username: 'ocupado', displayName: 'Otra' });
+    await renderRouter(routes, { initialUrl: '/friends' });
+
+    await fireEvent.press(await screen.findByTestId('button-save-username'));
+    expect(await screen.findByText('Escribe un nombre de usuario.')).toBeTruthy();
+
+    await fireEvent.changeText(screen.getByTestId('input-username'), 'Ocupado');
+    await fireEvent.press(screen.getByTestId('button-save-username'));
+    expect(await screen.findByText('Ese nombre de usuario ya está en uso. Prueba con otro.')).toBeTruthy();
+
+    await fireEvent.changeText(screen.getByTestId('input-username'), '@Ana');
+    await fireEvent.press(screen.getByTestId('button-save-username'));
+    expect(await screen.findByText('Tu usuario: @ana')).toBeTruthy();
+    expect(mockFriends.createProfile).toHaveBeenLastCalledWith(TEST_USER.uid, '@Ana', 'Ana');
+  });
+
+  it('busca a alguien por usuario y le envía una solicitud', async () => {
+    mockFriends.addProfile(ana);
+    mockFriends.addProfile(luis);
+    await renderRouter(routes, { initialUrl: '/friends' });
+
+    await fireEvent.press(await screen.findByTestId('button-add-friend'));
+    await waitFor(() => expect(screen).toHavePathname('/add-friend'));
+
+    await fireEvent.changeText(screen.getByTestId('input-friend-username'), 'nadie');
+    await fireEvent.press(screen.getByTestId('button-search-friend'));
+    expect(await screen.findByText('No existe ningún usuario @nadie.')).toBeTruthy();
+
+    await fireEvent.changeText(screen.getByTestId('input-friend-username'), '@Luis');
+    await fireEvent.press(screen.getByTestId('button-search-friend'));
+    await fireEvent.press(await screen.findByTestId('button-send-request'));
+    expect(await screen.findByText(/Solicitud enviada a @luis/)).toBeTruthy();
+
+    await act(() => router.back());
+    expect(await screen.findByText('@luis · pendiente')).toBeTruthy();
+  });
+
+  it('acepta una solicitud recibida y muestra al nuevo amigo', async () => {
+    mockFriends.addProfile(ana);
+    mockFriends.addProfile(luis);
+    mockFriends.addRequest(luis, ana);
+    await renderRouter(routes, { initialUrl: '/friends' });
+
+    expect(await screen.findByText('@luis quiere ser tu amigo')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('accept-luis'));
+
+    expect(await screen.findByTestId('friend-luis')).toBeTruthy();
+    expect(screen.queryByText('@luis quiere ser tu amigo')).toBeNull();
+    expect(mockFriends.friendUids(ana.uid)).toEqual(['u2']);
+  });
+
+  it('si la otra persona ya te había invitado, enviar la solicitud la acepta', async () => {
+    mockFriends.addProfile(ana);
+    mockFriends.addProfile(luis);
+    mockFriends.addRequest(luis, ana);
+    await renderRouter(routes, { initialUrl: '/add-friend' });
+
+    await fireEvent.changeText(await screen.findByTestId('input-friend-username'), 'luis');
+    await fireEvent.press(screen.getByTestId('button-search-friend'));
+    await fireEvent.press(await screen.findByTestId('button-send-request'));
+
+    expect(await screen.findByText(/ahora son amigos/)).toBeTruthy();
+    expect(mockFriends.sendFriendRequest).not.toHaveBeenCalled();
+    expect(mockFriends.friendUids(ana.uid)).toEqual(['u2']);
   });
 });
 

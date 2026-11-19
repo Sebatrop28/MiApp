@@ -8,6 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ErrorState } from '@/components/feedback/error-state';
 import { Colors, Spacing } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/context/auth-context';
+import { FriendsProvider } from '@/context/friends-context';
 import { NotesProvider } from '@/context/notes-context';
 import { SettingsProvider, useSettings } from '@/context/settings-context';
 import { useAppTheme } from '@/hooks/use-theme';
@@ -79,6 +80,15 @@ function RootNavigator() {
             }}
           />
           <Stack.Screen
+            name="add-friend"
+            options={{
+              headerShown: true,
+              title: 'Añadir amigo',
+              headerStyle: { backgroundColor: colors.surface },
+              headerTintColor: colors.text,
+            }}
+          />
+          <Stack.Screen
             name="updates"
             options={{
               headerShown: true,
@@ -98,10 +108,12 @@ function RootNavigator() {
     </ThemeProvider>
   );
 
-  // Las notas se cargan por cuenta; `key` reinicia el proveedor al cambiar de usuario.
+  // Notas y amigos son por cuenta; `key` reinicia los proveedores al cambiar de usuario.
   return user ? (
     <NotesProvider key={user.uid} userId={user.uid}>
-      {navigator}
+      <FriendsProvider key={user.uid} userId={user.uid} displayName={user.displayName}>
+        {navigator}
+      </FriendsProvider>
     </NotesProvider>
   ) : (
     navigator
