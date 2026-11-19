@@ -29,7 +29,7 @@ export function getCurrentUpdateInfo(): CurrentUpdateInfo {
 export async function downloadUpdateIfAvailable(): Promise<boolean> {
   if (!updatesSupported) return false;
   const check = await Updates.checkForUpdateAsync();
-  if (!check.isAvailable) return false;
+  if (!check.isAvailable && !check.isRollBackToEmbedded) return false;
   const result = await Updates.fetchUpdateAsync();
   return result.isNew || result.isRollBackToEmbedded;
 }
