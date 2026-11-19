@@ -1,7 +1,8 @@
 rules_version = '2';
 
 // Reglas de MiApp. Cópialas en Firebase → Firestore Database → Reglas → Publicar.
-// Solo hay perfiles, solicitudes y amistades: los mensajes del chat no se guardan en Firestore.
+// Solo hay perfiles, solicitudes, amistades y la señalización WebRTC (calls, se borra al conectar):
+// los mensajes del chat nunca se guardan en Firestore.
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() {
@@ -82,6 +83,39 @@ service cloud.firestore {
           == storedProfile(otherMember(request.resource.data.members));
       allow update: if false;
       allow delete: if signedIn() && me() in resource.data.members;
+    }
+
+    function areFriends(a, b) {
+      return exists(path('friendships', a < b ? a + '_' + b : b + '_' + a));
+    }
+
+    function isDescription(value, kind) {
+      return value is map
+        && value.keys().hasOnly(['type', 'sdp'])
+        && value.type == kind
+        && value.sdp is string
+        && value.sdp.size() < 20000;
+    }
+
+    // Oferta/respuesta WebRTC entre dos amigos: no contiene mensajes y se borra al conectar.
+    match /calls/{id} {
+      allow read: if signedIn() && (resource.data.from == me() || resource.data.to == me());
+      // Quien llama puede crear la oferta o reemplazarla por una nueva.
+      allow create, update: if signedIn()
+        && request.resource.data.keys().hasOnly(['from', 'to', 'offer', 'createdAt'])
+        && request.resource.data.from == me()
+        && request.resource.data.to is string
+        && id == me() + '_' + request.resource.data.to
+        && isDescription(request.resource.data.offer, 'offer')
+        && request.resource.data.createdAt is int
+        && areFriends(me(), request.resource.data.to);
+      // Quien recibe solo puede añadir la respuesta.
+      allow update: if signedIn()
+        && resource.data.to == me()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['answer'])
+        && isDescription(request.resource.data.answer, 'answer')
+        && areFriends(me(), resource.data.from);
+      allow delete: if signedIn() && (resource.data.from == me() || resource.data.to == me());
     }
 
     function otherMember(members) {

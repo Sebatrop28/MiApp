@@ -9,6 +9,10 @@ import NotesScreen from '@/app/(tabs)/notes';
 import SettingsScreen from '@/app/(tabs)/settings';
 import RootLayout from '@/app/_layout';
 import AddFriendScreen from '@/app/add-friend';
+import ChatScreen from '@/app/chat/[uid]';
+import { decodeWire, encodeWire } from '@/services/chat-protocol';
+import { chatStorageKey } from '@/services/chat-storage';
+import { PeerSession } from '@/services/p2p';
 import ForgotPasswordScreen from '@/app/forgot-password';
 import NoteScreen from '@/app/note/[id]';
 import SignInScreen from '@/app/sign-in';
@@ -19,6 +23,14 @@ import { DEFAULT_SETTINGS, SETTINGS_STORAGE_KEY } from '@/services/settings-stor
 
 jest.mock('@/services/auth', () => jest.requireActual('../test-utils/mock-auth'));
 jest.mock('@/services/friends', () => jest.requireActual('../test-utils/mock-friends'));
+jest.mock('@/services/firebase', () => ({ getFirebaseDb: () => ({}), getFirebaseAuth: () => ({}) }));
+jest.mock('@/services/webrtc', () => ({
+  getPeerConnectionConstructor: () => jest.requireActual('../test-utils/fake-webrtc').FakePeerConnection,
+}));
+jest.mock('@/services/chat-signaling', () => {
+  const memory = jest.requireActual('../test-utils/fake-webrtc').createMemorySignaling();
+  return { createFirestoreSignaling: () => memory.signaling, memory };
+});
 
 jest.mock('@/services/app-info', () => ({
   getAppInfo: jest.fn().mockResolvedValue({
@@ -43,6 +55,9 @@ jest.mock('@/services/content', () => {
 // Se usa un Stack en lugar de NativeTabs para que las pantallas se rendericen en el entorno de pruebas.
 const mockAuth = jest.requireMock<typeof import('../test-utils/mock-auth')>('@/services/auth');
 const mockFriends = jest.requireMock<typeof import('../test-utils/mock-friends')>('@/services/friends');
+const { memory: mockSignaling } = jest.requireMock<{ memory: ReturnType<typeof import('../test-utils/fake-webrtc').createMemorySignaling> }>(
+  '@/services/chat-signaling',
+);
 
 const TEST_USER = { uid: 'u1', email: 'ana@ejemplo.com', displayName: 'Ana', emailVerified: true, provider: 'password' as const };
 
@@ -58,6 +73,7 @@ const routes = {
   '(tabs)/notes': NotesScreen,
   '(tabs)/friends': FriendsScreen,
   'add-friend': AddFriendScreen,
+  'chat/[uid]': ChatScreen,
   'note/[id]': NoteScreen,
   'sign-in': SignInScreen,
   'sign-up': SignUpScreen,
@@ -211,6 +227,99 @@ describe('amigos', () => {
     expect(await screen.findByText(/ahora son amigos/)).toBeTruthy();
     expect(mockFriends.sendFriendRequest).not.toHaveBeenCalled();
     expect(mockFriends.friendUids(ana.uid)).toEqual(['u2']);
+  });
+});
+
+describe('chat', () => {
+  const ana = { uid: TEST_USER.uid, username: 'ana', displayName: 'Ana' };
+  const luis = { uid: 'u2', username: 'luis', displayName: 'Luis' };
+
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+    mockAuth.reset();
+    mockFriends.reset();
+    mockSignaling.reset();
+    mockAuth.setUser(TEST_USER);
+    mockFriends.addProfile(ana);
+    mockFriends.addProfile(luis);
+    mockFriends.addRequest(luis, ana);
+    await mockFriends.acceptFriendRequest({ id: 'u2_u1', from: luis, to: ana, createdAt: 0 });
+  });
+
+  /** Simula el teléfono de Luis con la app abierta: responde la llamada y confirma lo que recibe. */
+  function luisPhone() {
+    const { FakePeerConnection } = jest.requireActual('../test-utils/fake-webrtc');
+    const received: string[] = [];
+    let session: PeerSession | null = null;
+    const stop = mockSignaling.signaling.subscribeToIncoming(luis.uid, (calls) => {
+      const call = calls[0];
+      if (!call || session) return;
+      const s: PeerSession = new PeerSession(
+        { PeerConnection: FakePeerConnection, iceServers: [], signaling: mockSignaling.signaling },
+        {
+          onOpen: () => {},
+          onMessage: (data) => {
+            const wire = decodeWire(data);
+            if (wire?.t === 'msg') {
+              received.push(wire.text);
+              s.send(encodeWire({ t: 'ack', ids: [wire.id] }));
+            }
+          },
+          onClose: () => {},
+        },
+      );
+      session = s;
+      void s.answer(call);
+    }, () => {});
+    return {
+      received,
+      send: (text: string) => session?.send(encodeWire({ t: 'msg', id: `l-${text}`, text, sentAt: Date.now() })),
+      stop: () => {
+        stop();
+        session?.close();
+      },
+    };
+  }
+
+  it('abre el chat desde Amigos y envía y recibe mensajes directo', async () => {
+    const phone = luisPhone();
+    await renderRouter(routes, { initialUrl: '/friends' });
+    await fireEvent.press(await screen.findByTestId('friend-luis'));
+    await waitFor(() => expect(screen).toHavePathname('/chat/u2'));
+
+    expect(await screen.findByText('Conectado: los mensajes van directo a su teléfono')).toBeTruthy();
+
+    await fireEvent.changeText(screen.getByTestId('chat-input'), 'Hola Luis');
+    await fireEvent.press(screen.getByTestId('chat-send'));
+    await waitFor(() => expect(phone.received).toEqual(['Hola Luis']));
+    expect(await screen.findByLabelText('Entregado')).toBeTruthy();
+
+    await act(async () => {
+      phone.send('Hola Ana');
+    });
+    expect(await screen.findByText('Hola Ana')).toBeTruthy();
+
+    await waitFor(async () => {
+      const stored = JSON.parse((await AsyncStorage.getItem(chatStorageKey(TEST_USER.uid, luis.uid))) ?? '[]');
+      expect(stored.map((m: { text: string; status: string }) => [m.text, m.status])).toEqual([
+        ['Hola Luis', 'delivered'],
+        ['Hola Ana', 'delivered'],
+      ]);
+    });
+    phone.stop();
+  });
+
+  it('guarda el mensaje como pendiente si el amigo no está conectado', async () => {
+    await renderRouter(routes, { initialUrl: '/chat/u2' });
+    expect(await screen.findByText(/Conectando… tu amigo debe tener la app abierta/)).toBeTruthy();
+
+    await fireEvent.changeText(screen.getByTestId('chat-input'), 'Te escribo luego');
+    await fireEvent.press(screen.getByTestId('chat-send'));
+    expect(await screen.findByLabelText('Pendiente')).toBeTruthy();
+    await waitFor(async () => {
+      const stored = JSON.parse((await AsyncStorage.getItem(chatStorageKey(TEST_USER.uid, luis.uid))) ?? '[]');
+      expect(stored[0]).toMatchObject({ text: 'Te escribo luego', status: 'pending' });
+    });
   });
 });
 

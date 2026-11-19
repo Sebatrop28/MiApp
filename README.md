@@ -11,6 +11,7 @@ Base profesional de una aplicación Android construida con **React Native + Expo
 3. [Instalación](#instalación)
 4. [Configurar Firebase (cuentas de usuario)](#configurar-firebase-cuentas-de-usuario)
    - [Amigos: crear Firestore](#amigos-crear-firestore)
+   - [Chat directo entre teléfonos (P2P)](#chat-directo-entre-teléfonos-p2p)
 5. [Ejecutar en desarrollo](#ejecutar-en-desarrollo)
 6. [Comprobaciones de calidad](#comprobaciones-de-calidad)
 7. [Generar el APK con EAS Build](#generar-el-apk-con-eas-build)
@@ -110,6 +111,18 @@ La pestaña **Amigos** guarda en Cloud Firestore solo el nombre de usuario, el n
 No hace falta recompilar el APK: Firestore usa el mismo `firebaseConfig`. Si la base de datos no existe o faltan las reglas, la pestaña Amigos muestra un aviso.
 
 > Para probar las reglas en local: `npx firebase-tools emulators:start --only firestore` (requiere Java 21).
+
+### Chat directo entre teléfonos (P2P)
+
+Toca un amigo en la pestaña **Amigos** para abrir el chat. Los mensajes viajan de teléfono a teléfono por WebRTC (canal cifrado con DTLS) y se guardan **solo** en los dos teléfonos.
+
+- **Los dos deben tener la app abierta.** Si tu amigo no está conectado, el mensaje queda en tu teléfono con un reloj ⏱ y se envía solo cuando los dos estén conectados. Con ✓✓ el otro teléfono ya lo guardó.
+- **Firestore solo se usa para «presentar» a los dos teléfonos** (colección `calls`: la oferta y la respuesta WebRTC). Ese documento se borra en cuanto conectan y nunca contiene mensajes.
+- **Redes que bloquean P2P:** algunas redes móviles o corporativas no permiten la conexión directa. En ese caso hace falta un servidor TURN, que reenvía los datos cifrados sin guardarlos. Se configura en `app.json → extra.webrtc.iceServers` sin cambiar código:
+  ```json
+  "webrtc": { "iceServers": [{ "urls": "turn:tu-servidor:3478", "username": "usuario", "credential": "clave" }] }
+  ```
+- WebRTC es código nativo: **no funciona en Expo Go**. Hace falta el APK (`npm run build:apk`). Al agregarlo, la versión de la app pasó a `1.1.0`, así que las actualizaciones OTA nuevas solo llegan a los APK compilados desde esta versión.
 
 ---
 
