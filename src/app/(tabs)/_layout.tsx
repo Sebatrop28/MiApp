@@ -22,6 +22,10 @@ export default function TabsLayout() {
         <NativeTabs.Trigger.Label>Notas</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf={{ default: 'note.text', selected: 'note.text' }} md="sticky_note_2" />
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="friends">
+        <NativeTabs.Trigger.Label>Amigos</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf={{ default: 'person.2', selected: 'person.2.fill' }} md="group" />
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="settings">
         <NativeTabs.Trigger.Label>Ajustes</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="gearshape" md="settings" />
