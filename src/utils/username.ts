@@ -1,5 +1,7 @@
 export const USERNAME_MIN_LENGTH = 3;
 export const USERNAME_MAX_LENGTH = 20;
+/** Mismo límite que `firestore.rules`. */
+export const DISPLAY_NAME_MAX_LENGTH = 60;
 const USERNAME_PATTERN = /^[a-z0-9_.]+$/;
 
 /** Los nombres de usuario se comparan sin mayúsculas, sin espacios y sin la «@» inicial. */
@@ -14,6 +16,8 @@ export function validateUsername(input: string): string | null {
     return `Debe tener entre ${USERNAME_MIN_LENGTH} y ${USERNAME_MAX_LENGTH} caracteres.`;
   }
   if (!USERNAME_PATTERN.test(username)) return 'Usa solo letras, números, «_» o «.», sin espacios ni acentos.';
+  // Firestore reserva los ids con la forma `__…__`.
+  if (/^__.*__$/.test(username)) return 'No puede empezar y terminar con «__».';
   return null;
 }
 

@@ -16,6 +16,8 @@ describe('nombres de usuario', () => {
     expect(validateUsername('a'.repeat(21))).toMatch(/entre 3 y 20/);
     expect(validateUsername('ana lopez')).toMatch(/solo letras/);
     expect(validateUsername('añá')).toMatch(/solo letras/);
+    expect(validateUsername('__ana__')).toMatch(/«__»/);
+    expect(validateUsername('__ana')).toBeNull();
   });
 
   it('genera el mismo id de amistad sin importar el orden', () => {
