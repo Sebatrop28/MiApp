@@ -16,14 +16,6 @@ service cloud.firestore {
       return /databases/$(database)/documents/$(collectionName)/$(id);
     }
 
-    function isProfile(data, uid) {
-      return data.keys().hasOnly(['uid', 'username', 'displayName'])
-        && data.uid == uid
-        && data.username is string
-        && data.displayName is string
-        && data.displayName.size() <= 60;
-    }
-
     function storedProfile(uid) {
       let p = get(path('profiles', uid)).data;
       return { 'uid': p.uid, 'username': p.username, 'displayName': p.displayName };
@@ -48,7 +40,8 @@ service cloud.firestore {
         && name.matches('^[a-z0-9_.]{3,20}$')
         && request.resource.data.keys().hasOnly(['uid'])
         && request.resource.data.uid == me()
-        && !exists(path('profiles', me()));
+        && !exists(path('profiles', me()))
+        && getAfter(path('profiles', me())).data.username == name;
       allow update, delete: if false;
     }
 
@@ -80,11 +73,13 @@ service cloud.firestore {
         && request.resource.data.members[0] < request.resource.data.members[1]
         && id == request.resource.data.members[0] + '_' + request.resource.data.members[1]
         && request.resource.data.createdAt is int
+        // La solicitud debe existir y borrarse en la misma escritura (no se puede reutilizar).
         && exists(path('friendRequests', otherMember(request.resource.data.members) + '_' + me()))
+        && !existsAfter(path('friendRequests', otherMember(request.resource.data.members) + '_' + me()))
         && request.resource.data.profiles.keys().hasOnly(request.resource.data.members)
-        && isProfile(request.resource.data.profiles[me()], me())
-        && isProfile(request.resource.data.profiles[otherMember(request.resource.data.members)],
-          otherMember(request.resource.data.members));
+        && request.resource.data.profiles[me()] == storedProfile(me())
+        && request.resource.data.profiles[otherMember(request.resource.data.members)]
+          == storedProfile(otherMember(request.resource.data.members));
       allow update: if false;
       allow delete: if signedIn() && me() in resource.data.members;
     }
