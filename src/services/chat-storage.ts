@@ -11,6 +11,8 @@ export interface ChatMessage {
   text: string;
   sentAt: number;
   status: 'pending' | 'delivered';
+  /** Imagen guardada en la carpeta privada del chat (solo en este teléfono). */
+  image?: { uri: string; width: number; height: number };
 }
 
 export function chatStorageKey(userId: string, friendUid: string): string {
@@ -21,6 +23,11 @@ export function createMessageId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function isImage(value: unknown): boolean {
+  const i = value as Record<string, unknown> | null;
+  return !!i && typeof i.uri === 'string' && typeof i.width === 'number' && typeof i.height === 'number';
+}
+
 function isChatMessage(value: unknown): value is ChatMessage {
   if (typeof value !== 'object' || value === null) return false;
   const m = value as Record<string, unknown>;
@@ -29,7 +36,8 @@ function isChatMessage(value: unknown): value is ChatMessage {
     typeof m.from === 'string' &&
     typeof m.text === 'string' &&
     typeof m.sentAt === 'number' &&
-    (m.status === 'pending' || m.status === 'delivered')
+    (m.status === 'pending' || m.status === 'delivered') &&
+    (m.image === undefined || isImage(m.image))
   );
 }
 

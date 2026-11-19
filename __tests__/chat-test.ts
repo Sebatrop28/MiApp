@@ -61,3 +61,41 @@ describe('historial del chat', () => {
     expect((await loadMessages('me', 'u4')).map((m) => m.id)).toEqual(['ok']);
   });
 });
+
+describe('imágenes por el chat', () => {
+  const { decodeWire: decode, encodeWire: encode, ImageAssembler, splitChunks, MAX_CHUNKS } = jest.requireActual<
+    typeof import('@/services/chat-protocol')
+  >('@/services/chat-protocol');
+
+  it('parte una imagen en trozos y la vuelve a armar aunque lleguen desordenados', () => {
+    const base64 = 'QUJD'.repeat(10);
+    const chunks = splitChunks(base64, 7);
+    expect(chunks.join('')).toBe(base64);
+
+    const assembler = new ImageAssembler();
+    const header = { t: 'img' as const, id: 'i1', sentAt: 1, width: 10, height: 5, chunks: chunks.length };
+    expect(decode(encode(header))).toEqual(header);
+    assembler.start(header);
+    const order = chunks.map((_, i) => i).reverse();
+    let done: ReturnType<InstanceType<typeof ImageAssembler>['add']> = null;
+    for (const i of order) {
+      expect(done).toBeNull();
+      done = assembler.add({ t: 'chunk', id: 'i1', i, data: chunks[i] });
+    }
+    expect(done).toEqual({ header, base64 });
+  });
+
+  it('ignora trozos repetidos, fuera de rango o de imágenes desconocidas', () => {
+    const assembler = new ImageAssembler();
+    assembler.start({ t: 'img', id: 'i1', sentAt: 1, width: 1, height: 1, chunks: 2 });
+    expect(assembler.add({ t: 'chunk', id: 'i1', i: 0, data: 'a' })).toBeNull();
+    expect(assembler.add({ t: 'chunk', id: 'i1', i: 0, data: 'a' })).toBeNull();
+    expect(assembler.add({ t: 'chunk', id: 'i1', i: 5, data: 'x' })).toBeNull();
+    expect(assembler.add({ t: 'chunk', id: 'otra', i: 0, data: 'x' })).toBeNull();
+    expect(assembler.add({ t: 'chunk', id: 'i1', i: 1, data: 'b' })?.base64).toBe('ab');
+  });
+
+  it('rechaza cabeceras con demasiados trozos', () => {
+    expect(decode(JSON.stringify({ t: 'img', id: 'x', sentAt: 1, width: 1, height: 1, chunks: MAX_CHUNKS + 1 }))).toBeNull();
+  });
+});

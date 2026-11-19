@@ -27,6 +27,19 @@ jest.mock('@/services/firebase', () => ({ getFirebaseDb: () => ({}), getFirebase
 jest.mock('@/services/webrtc', () => ({
   getPeerConnectionConstructor: () => jest.requireActual('../test-utils/fake-webrtc').FakePeerConnection,
 }));
+jest.mock('expo-image-picker', () => ({
+  launchImageLibraryAsync: jest.fn(async () => ({
+    canceled: false,
+    assets: [{ uri: 'file:///galeria/foto.jpg', width: 4000, height: 3000 }],
+  })),
+}));
+jest.mock('@/services/chat-media', () => ({
+  imagesSupported: true,
+  MAX_IMAGE_BYTES: 3 * 1024 * 1024,
+  prepareImage: jest.fn(async (_u: string, _f: string, id: string) => ({ uri: `file:///chat/${id}.jpg`, width: 1280, height: 960 })),
+  readImageBase64: jest.fn(async () => 'QUJD'.repeat(5000)),
+  saveReceivedImage: jest.fn(async (_u: string, _f: string, id: string) => `file:///chat/recibida-${id}.jpg`),
+}));
 jest.mock('@/services/chat-signaling', () => {
   const memory = jest.requireActual('../test-utils/fake-webrtc').createMemorySignaling();
   return { createFirestoreSignaling: () => memory.signaling, memory };
@@ -250,6 +263,8 @@ describe('chat', () => {
   function luisPhone() {
     const { FakePeerConnection } = jest.requireActual('../test-utils/fake-webrtc');
     const received: string[] = [];
+    const { ImageAssembler } = jest.requireActual('@/services/chat-protocol');
+    const images = new ImageAssembler();
     let session: PeerSession | null = null;
     const stop = mockSignaling.signaling.subscribeToIncoming(luis.uid, (calls) => {
       const call = calls[0];
@@ -263,6 +278,14 @@ describe('chat', () => {
             if (wire?.t === 'msg') {
               received.push(wire.text);
               s.send(encodeWire({ t: 'ack', ids: [wire.id] }));
+            } else if (wire?.t === 'img') {
+              images.start(wire);
+            } else if (wire?.t === 'chunk') {
+              const done = images.add(wire);
+              if (done) {
+                received.push(`imagen:${done.base64.length}`);
+                s.send(encodeWire({ t: 'ack', ids: [done.header.id] }));
+              }
             }
           },
           onClose: () => {},
@@ -274,6 +297,11 @@ describe('chat', () => {
     return {
       received,
       send: (text: string) => session?.send(encodeWire({ t: 'msg', id: `l-${text}`, text, sentAt: Date.now() })),
+      sendImage: () => {
+        session?.send(encodeWire({ t: 'img', id: 'l-img', sentAt: Date.now(), width: 300, height: 200, chunks: 2 }));
+        session?.send(encodeWire({ t: 'chunk', id: 'l-img', i: 1, data: 'REVG' }));
+        session?.send(encodeWire({ t: 'chunk', id: 'l-img', i: 0, data: 'QUJD' }));
+      },
       stop: () => {
         stop();
         session?.close();
@@ -306,6 +334,29 @@ describe('chat', () => {
         ['Hola Ana', 'delivered'],
       ]);
     });
+    phone.stop();
+  });
+
+  it('envía y recibe imágenes por trozos y las guarda solo en el teléfono', async () => {
+    const phone = luisPhone();
+    const media = jest.requireMock<typeof import('@/services/chat-media')>('@/services/chat-media');
+    await renderRouter(routes, { initialUrl: '/chat/u2' });
+    expect(await screen.findByText('Conectado: los mensajes van directo a su teléfono')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('chat-attach-image'));
+    await waitFor(() => expect(phone.received).toEqual(['imagen:20000']));
+    expect(media.prepareImage).toHaveBeenCalledWith(TEST_USER.uid, luis.uid, expect.any(String), {
+      uri: 'file:///galeria/foto.jpg',
+      width: 4000,
+      height: 3000,
+    });
+    expect(await screen.findByLabelText('Entregado')).toBeTruthy();
+
+    await act(async () => {
+      phone.sendImage();
+    });
+    expect(await screen.findByTestId('image-l-img')).toBeTruthy();
+    expect(media.saveReceivedImage).toHaveBeenCalledWith(TEST_USER.uid, luis.uid, 'l-img', 'QUJDREVG');
     phone.stop();
   });
 

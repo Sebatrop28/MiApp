@@ -2,7 +2,7 @@
   "expo": {
     "name": "MiApp",
     "slug": "miapp",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "miapp",
@@ -41,6 +41,14 @@
             "backgroundColor": "#0B1020",
             "image": "./assets/images/splash-icon.png"
           }
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "MiApp usa tus fotos para enviarlas a tus amigos por el chat.",
+          "cameraPermission": false,
+          "microphonePermission": false
         }
       ]
     ],

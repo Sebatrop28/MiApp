@@ -23,6 +23,7 @@ interface Listenable {
 
 export interface DataChannelLike extends Listenable {
   readonly readyState: string;
+  readonly bufferedAmount?: number;
   send(data: string): void;
   close(): void;
 }
@@ -73,6 +74,7 @@ export interface SessionDeps {
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const ICE_GATHERING_TIMEOUT_MS = 5_000;
+const MAX_BUFFERED_BYTES = 256 * 1024;
 
 function waitForIceGathering(pc: PeerConnectionLike): Promise<void> {
   if (pc.iceGatheringState === 'complete') return Promise.resolve();
@@ -169,6 +171,14 @@ export class PeerSession {
     } catch {
       return false;
     }
+  }
+
+  /** Envía respetando el búfer del canal, para no saturarlo con imágenes grandes. */
+  async sendWhenReady(data: string): Promise<boolean> {
+    while (this.isOpen && (this.channel?.bufferedAmount ?? 0) > MAX_BUFFERED_BYTES) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    return this.send(data);
   }
 
   close(): void {
