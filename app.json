@@ -78,7 +78,7 @@
     },
     "owner": "sebatrop",
     "runtimeVersion": {
-      "policy": "appVersion"
+      "policy": "fingerprint"
     },
     "updates": {
       "url": "https://u.expo.dev/56dd7e97-df8d-4fcf-a536-e5d66f0e5285",

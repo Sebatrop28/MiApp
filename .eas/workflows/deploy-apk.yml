@@ -1,0 +1,39 @@
+# Al fusionar en main: si cambió el código nativo se compila un APK nuevo;
+# si no, se publica una actualización OTA para los APK ya instalados.
+name: Publicar APK o actualización
+
+on:
+  push:
+    branches: ['main']
+
+jobs:
+  fingerprint:
+    name: Huella nativa
+    type: fingerprint
+    environment: preview
+  get_android_build:
+    name: Buscar APK con la misma huella
+    needs: [fingerprint]
+    type: get-build
+    params:
+      platform: android
+      profile: preview
+      fingerprint_hash: ${{ needs.fingerprint.outputs.android_fingerprint_hash }}
+      wait_for_in_progress: true
+  build_android:
+    name: Compilar APK nuevo
+    needs: [get_android_build]
+    if: ${{ !needs.get_android_build.outputs.build_id }}
+    type: build
+    params:
+      platform: android
+      profile: preview
+  publish_android_update:
+    name: Publicar actualización OTA
+    needs: [get_android_build]
+    if: ${{ needs.get_android_build.outputs.build_id }}
+    type: update
+    environment: preview
+    params:
+      channel: preview
+      platform: android

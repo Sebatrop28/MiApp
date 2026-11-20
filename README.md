@@ -185,6 +185,16 @@ EAS Build compila la app en los servidores de Expo; no necesitas Android Studio.
    - Con cable: `adb install ruta/al/archivo.apk`.
    - En un emulador: `npx eas-cli@latest build:run -p android --latest`.
 
+### Publicación automática al fusionar en `main` (EAS Workflows)
+
+[`.eas/workflows/deploy-apk.yml`](.eas/workflows/deploy-apk.yml) se ejecuta en los servidores de Expo cada vez que llega un commit a `main`:
+
+1. Calcula la **huella nativa** del proyecto (`runtimeVersion: { "policy": "fingerprint" }`).
+2. Si ya existe un APK `preview` con esa huella, **publica una actualización OTA** en el canal `preview`; los teléfonos la reciben al abrir la app.
+3. Si no existe (se agregó o actualizó un paquete nativo), **compila un APK nuevo**. El enlace de descarga aparece en expo.dev → tu proyecto → **Builds**.
+
+Configuración, una sola vez: en expo.dev abre el proyecto → **Project settings → GitHub**, instala la app de GitHub de Expo y conecta el repositorio `Sebatrop28/MiApp`. No hace falta guardar tokens en GitHub. El progreso se ve en expo.dev → **Workflows**.
+
 ### Publicar una actualización sin reinstalar (EAS Update)
 
 Los cambios de código y textos (todo lo que está en `src/`) se pueden enviar a los teléfonos que ya tienen el APK instalado:
