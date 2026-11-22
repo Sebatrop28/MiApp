@@ -38,7 +38,7 @@ service cloud.firestore {
     match /usernames/{name} {
       allow read: if signedIn();
       allow create: if signedIn()
-        && name.matches('^[a-z0-9_.]{3,20}$')
+        && name.matches('^[a-zñ0-9_.]{3,20}$')
         && request.resource.data.keys().hasOnly(['uid'])
         && request.resource.data.uid == me()
         && !exists(path('profiles', me()))

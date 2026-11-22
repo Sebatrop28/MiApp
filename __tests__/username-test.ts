@@ -8,6 +8,9 @@ describe('nombres de usuario', () => {
   it('acepta nombres válidos', () => {
     expect(validateUsername('ana.lopez_99')).toBeNull();
     expect(validateUsername('@Ana')).toBeNull();
+    expect(validateUsername('Sebastian_Patiño')).toBeNull();
+    expect(normalizeUsername('PATIÑO')).toBe('patiño');
+    expect(normalizeUsername('patin\u0303o')).toBe('patiño');
   });
 
   it('rechaza nombres vacíos, cortos, largos o con caracteres no permitidos', () => {
@@ -16,6 +19,7 @@ describe('nombres de usuario', () => {
     expect(validateUsername('a'.repeat(21))).toMatch(/entre 3 y 20/);
     expect(validateUsername('ana lopez')).toMatch(/solo letras/);
     expect(validateUsername('añá')).toMatch(/solo letras/);
+    expect(validateUsername('josé')).toMatch(/solo letras/);
     expect(validateUsername('__ana__')).toMatch(/«__»/);
     expect(validateUsername('__ana')).toBeNull();
   });
