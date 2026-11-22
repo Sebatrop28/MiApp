@@ -99,6 +99,15 @@ function RootNavigator() {
             }}
           />
           <Stack.Screen
+            name="new-post"
+            options={{
+              headerShown: true,
+              title: 'Nueva publicación',
+              headerStyle: { backgroundColor: colors.surface },
+              headerTintColor: colors.text,
+            }}
+          />
+          <Stack.Screen
             name="updates"
             options={{
               headerShown: true,

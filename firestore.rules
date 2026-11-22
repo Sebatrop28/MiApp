@@ -2,7 +2,8 @@ rules_version = '2';
 
 // Reglas de MiApp. Cópialas en Firebase → Firestore Database → Reglas → Publicar.
 // Solo hay perfiles, solicitudes, amistades, la señalización WebRTC (calls, se borra al conectar)
-// y el buzón `relay`: mensajes cifrados de extremo a extremo que el destinatario borra al recibirlos.
+// el buzón `relay` (mensajes cifrados de extremo a extremo que el destinatario borra al recibirlos)
+// y las publicaciones (`posts`, `postImages`), visibles para todas las cuentas.
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() {
@@ -145,6 +146,54 @@ service cloud.firestore {
         && areFriends(me(), request.resource.data.to);
       allow update: if false;
       allow delete: if signedIn() && (resource.data.from == me() || resource.data.to == me());
+    }
+
+    // Publicaciones visibles para todas las cuentas con sesión iniciada.
+    function likeChange(before, after) {
+      let added = after.toSet().difference(before.toSet());
+      let removed = before.toSet().difference(after.toSet());
+      return (added == [me()].toSet() && removed.size() == 0)
+        || (removed == [me()].toSet() && added.size() == 0);
+    }
+
+    match /posts/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['authorUid', 'author', 'text', 'link', 'image', 'likes', 'createdAt'])
+        && request.resource.data.authorUid == me()
+        && request.resource.data.author == storedProfile(me())
+        && request.resource.data.text is string
+        && request.resource.data.text.size() <= 1000
+        && (request.resource.data.link == null
+          || (request.resource.data.link is string
+            && request.resource.data.link.size() <= 500
+            && request.resource.data.link.matches('^[Hh][Tt][Tt][Pp][Ss]?://[^ ]+$')))
+        && (request.resource.data.image == null
+          || (request.resource.data.image is map
+            && request.resource.data.image.keys().hasOnly(['width', 'height'])
+            && request.resource.data.image.width is number
+            && request.resource.data.image.height is number
+            && existsAfter(path('postImages', id))))
+        && (request.resource.data.text.size() > 0 || request.resource.data.link != null || request.resource.data.image != null)
+        && request.resource.data.likes == []
+        && request.resource.data.createdAt is int;
+      // Cualquiera puede dar o quitar solo su propio «me gusta».
+      allow update: if signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])
+        && request.resource.data.likes is list
+        && likeChange(resource.data.likes, request.resource.data.likes);
+      allow delete: if signedIn() && resource.data.authorUid == me();
+    }
+
+    match /postImages/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && getAfter(path('posts', id)).data.authorUid == me()
+        && request.resource.data.keys().hasOnly(['data'])
+        && request.resource.data.data is string
+        && request.resource.data.data.size() <= 900000;
+      allow update: if false;
+      allow delete: if signedIn() && get(path('posts', id)).data.authorUid == me();
     }
 
     function otherMember(members) {

@@ -9,6 +9,7 @@ import NotesScreen from '@/app/(tabs)/notes';
 import SettingsScreen from '@/app/(tabs)/settings';
 import RootLayout from '@/app/_layout';
 import AddFriendScreen from '@/app/add-friend';
+import NewPostScreen from '@/app/new-post';
 import ChatScreen from '@/app/chat/[uid]';
 import { decodeWire, encodeWire } from '@/services/chat-protocol';
 import { chatStorageKey } from '@/services/chat-storage';
@@ -66,19 +67,15 @@ jest.mock('@/services/app-info', () => ({
   }),
 }));
 
-jest.mock('@/services/content', () => {
-  const { NetworkError } = jest.requireActual('@/utils/errors');
-  return {
-    fetchHighlights: jest.fn(async ({ simulateError }: { simulateError?: boolean } = {}) => {
-      if (simulateError) throw new NetworkError();
-      return [{ id: 'demo', title: 'Novedad de prueba', description: 'Descripción', icon: 'info' }];
-    }),
-  };
-});
+jest.mock('@/services/posts', () => jest.requireActual('../test-utils/mock-posts'));
+jest.mock('@/services/post-media', () => ({
+  preparePostImage: jest.fn(async () => ({ uri: 'file:///foto.jpg', base64: 'QUJD', width: 4, height: 3 })),
+}));
 
 // Se usa un Stack en lugar de NativeTabs para que las pantallas se rendericen en el entorno de pruebas.
 const mockAuth = jest.requireMock<typeof import('../test-utils/mock-auth')>('@/services/auth');
 const mockFriends = jest.requireMock<typeof import('../test-utils/mock-friends')>('@/services/friends');
+const mockPosts = jest.requireMock<typeof import('../test-utils/mock-posts')>('@/services/posts');
 const { memory: mockSignaling } = jest.requireMock<{ memory: ReturnType<typeof import('../test-utils/fake-webrtc').createMemorySignaling> }>(
   '@/services/chat-signaling',
 );
@@ -97,6 +94,7 @@ const routes = {
   '(tabs)/notes': NotesScreen,
   '(tabs)/friends': FriendsScreen,
   'add-friend': AddFriendScreen,
+  'new-post': NewPostScreen,
   'chat/[uid]': ChatScreen,
   'note/[id]': NoteScreen,
   'sign-in': SignInScreen,
@@ -111,20 +109,59 @@ describe('navegación', () => {
     await AsyncStorage.clear();
     mockAuth.reset();
     mockFriends.reset();
+    mockPosts.reset();
     mockAuth.setUser(TEST_USER);
   });
 
-  it('muestra Inicio con su contenido cargado', async () => {
+  it('muestra en Inicio las publicaciones de todos y permite dar me gusta', async () => {
+    mockPosts.addPost({
+      id: 'x1',
+      author: { uid: 'u9', username: 'luis', displayName: 'Luis' },
+      text: 'Hola a todos',
+      link: 'https://ejemplo.com/apuntes/Tema%201.pdf',
+      image: null,
+      likes: [],
+      createdAt: Date.now(),
+    });
     await renderRouter(routes, { initialUrl: '/' });
-    expect(await screen.findByText('Novedad de prueba')).toBeTruthy();
-    expect(screen).toHavePathname('/');
+    expect(await screen.findByText('Hola a todos')).toBeTruthy();
+    expect(screen.getByText('Tema 1.pdf')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Eliminar publicación' })).toBeNull();
+    expect(await screen.findByText('Para publicar, primero elige tu nombre de usuario en Amigos.')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('like-x1'));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Quitar me gusta' })).toBeTruthy());
+    expect(mockPosts.setLiked).toHaveBeenLastCalledWith('x1', TEST_USER.uid, true);
   });
 
-  it('navega de Inicio a Ajustes y a Información', async () => {
+  it('publica un mensaje con foto y enlace desde Inicio', async () => {
+    mockFriends.addProfile({ uid: TEST_USER.uid, username: 'ana', displayName: 'Ana' });
     await renderRouter(routes, { initialUrl: '/' });
+    expect(await screen.findByText('Todavía no hay publicaciones. ¡Sé la primera persona en compartir algo!')).toBeTruthy();
 
-    await fireEvent.press(await screen.findByRole('button', { name: 'Ajustes' }));
-    await waitFor(() => expect(screen).toHavePathname('/settings'));
+    await fireEvent.press(screen.getByTestId('button-new-post'));
+    await waitFor(() => expect(screen).toHavePathname('/new-post'));
+    await fireEvent.press(await screen.findByTestId('button-publish'));
+    expect(await screen.findByText('Escribe algo, añade una foto o un enlace.')).toBeTruthy();
+
+    await fireEvent.changeText(screen.getByTestId('input-post-text'), 'Mi primera publicación');
+    await fireEvent.changeText(screen.getByTestId('input-post-link'), 'drive.google.com/file/d/abc/view');
+    await fireEvent.press(screen.getByTestId('button-post-image'));
+    expect(await screen.findByRole('button', { name: 'Quitar foto' })).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('button-publish'));
+
+    await waitFor(() => expect(screen).toHavePathname('/'));
+    expect(await screen.findByText('Mi primera publicación')).toBeTruthy();
+    expect(await screen.findByTestId('post-image-p1')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Eliminar publicación' })).toBeTruthy();
+    expect(mockPosts.createPost).toHaveBeenLastCalledWith(
+      { uid: TEST_USER.uid, username: 'ana', displayName: 'Ana' },
+      { text: 'Mi primera publicación', link: 'drive.google.com/file/d/abc/view', image: { base64: 'QUJD', width: 4, height: 3 } },
+    );
+  });
+
+  it('navega de Ajustes a Información', async () => {
+    await renderRouter(routes, { initialUrl: '/settings' });
     expect(await screen.findByText('Personaliza tu experiencia')).toBeTruthy();
 
     await fireEvent.press(screen.getByRole('button', { name: 'Información de la app' }));
@@ -139,7 +176,7 @@ describe('navegación', () => {
     );
     await renderRouter(routes, { initialUrl: '/' });
 
-    expect(await screen.findByText('No se pudo cargar el contenido')).toBeTruthy();
+    expect(await screen.findByText('No se pudieron cargar las publicaciones')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Reintentar' })).toBeTruthy();
   });
 
@@ -412,7 +449,7 @@ describe('cuentas', () => {
     await fireEvent.changeText(screen.getByTestId('input-confirm'), 'secreto1');
     await fireEvent.press(screen.getByTestId('button-sign-up'));
 
-    expect(await screen.findByText('Novedad de prueba')).toBeTruthy();
+    expect(await screen.findByTestId('home-screen')).toBeTruthy();
     expect(mockAuth.signUpWithEmail).toHaveBeenCalledWith('Luis', 'luis@ejemplo.com', 'secreto1');
 
     await act(() => router.navigate('/settings'));
@@ -430,7 +467,7 @@ describe('cuentas', () => {
 
     await fireEvent.changeText(screen.getByTestId('input-password'), 'secreto1');
     await fireEvent.press(screen.getByTestId('button-sign-in'));
-    expect(await screen.findByText('Novedad de prueba')).toBeTruthy();
+    expect(await screen.findByTestId('home-screen')).toBeTruthy();
   });
 
   it('cada cuenta ve solo sus notas', async () => {

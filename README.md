@@ -27,18 +27,19 @@ Base profesional de una aplicación Android construida con **React Native + Expo
 
 | Área | Detalle |
 | --- | --- |
-| Navegación | Expo Router con barra de pestañas nativa (Material 3 en Android): **Inicio**, **Notas**, **Ajustes** e **Información**. Rutas tipadas (`typedRoutes`). Pantalla 404 personalizada. |
+| Navegación | Expo Router con barra de pestañas nativa (Material 3 en Android): **Inicio**, **Notas**, **Amigos**, **Ajustes** e **Información**. Rutas tipadas (`typedRoutes`). Pantalla 404 personalizada. |
 | Diseño | Sistema de diseño propio (`src/constants/theme.ts`): colores claro/oscuro, espaciado, radios y tipografía. Iconos Material Symbols vía `expo-symbols`. Contenido con ancho máximo para tablets. |
 | Cuentas | Hay que iniciar sesión para usar la app. Registro con nombre, correo y contraseña (se envía un correo de verificación), inicio de sesión con correo o con **Google** (Android), recuperación de contraseña y cierre de sesión en *Ajustes*. La sesión se recuerda entre aperturas. Firebase Auth. |
 | Actualizaciones | *Ajustes → Actualizaciones*: buscar e instalar versiones nuevas sin reinstalar el APK (EAS Update) y opción **Actualizar automáticamente** (al abrir la app descarga la versión nueva y ofrece reiniciar). |
+| Inicio | Muro de publicaciones visible para todas las cuentas: texto (hasta 1000 caracteres), una foto y un enlace a un archivo o página (por ejemplo, de Google Drive). Se puede dar «me gusta» y borrar las publicaciones propias. Hace falta tener nombre de usuario (pestaña Amigos) para publicar. |
 | Notas | Bloc de notas: crea, edita y elimina notas. Todo lo que escribes se guarda automáticamente en el dispositivo (AsyncStorage), aunque cierres la app. Cada cuenta tiene sus propias notas en ese dispositivo. La primera línea se usa como título; las notas vacías se descartan al salir. |
 | Ajustes | Tema (Sistema / Claro / Oscuro), notificaciones y modo de prueba de errores. Se guardan en el dispositivo con AsyncStorage. |
 | Estados | Esqueletos de carga, indicadores, «deslizar para actualizar», mensajes de error con botón **Reintentar**, avisos no bloqueantes y `ErrorBoundary` global. |
 | Información | Versión, compilación, identificador, fecha de instalación, datos del dispositivo y tecnologías (`expo-application`, `expo-device`, `expo-constants`). |
-| Calidad | TypeScript estricto, ESLint (`eslint-config-expo`), Jest + React Native Testing Library (38 pruebas). |
+| Calidad | TypeScript estricto, ESLint (`eslint-config-expo`), Jest + React Native Testing Library. |
 | Compilación | `eas.json` con perfil `preview` (APK) y `production` (AAB para Google Play). |
 
-> **Probar los mensajes de error:** en *Ajustes → Desarrollo* activa **Simular errores de red** y vuelve a *Inicio*: la sección «Novedades» mostrará el error y el botón *Reintentar*.
+> **Probar los mensajes de error:** en *Ajustes → Desarrollo* activa **Simular errores de red** y vuelve a *Inicio*: el muro de publicaciones mostrará el error y el botón *Reintentar*.
 
 ---
 
@@ -111,6 +112,14 @@ La pestaña **Amigos** guarda en Cloud Firestore el nombre de usuario, el nombre
 No hace falta recompilar el APK: Firestore usa el mismo `firebaseConfig`. Si la base de datos no existe o faltan las reglas, la pestaña Amigos muestra un aviso.
 
 > Para probar las reglas en local: `npx firebase-tools emulators:start --only firestore` (requiere Java 21).
+
+### Publicaciones (Inicio)
+
+A diferencia del chat, las publicaciones **sí se guardan en Firestore, sin cifrar**, para que cualquier cuenta con sesión iniciada pueda verlas.
+
+- `posts/{id}`: autor (copia del perfil, verificada por las reglas), texto, enlace, tamaño de la foto, lista de «me gusta» y fecha. El muro muestra las 50 más recientes en tiempo real.
+- `postImages/{id}`: la foto en base64, en un documento aparte para que el muro cargue rápido. Se reduce a 1080 px y se comprime en JPEG hasta que ocupe menos de 900 KB, así que no hace falta Firebase Storage (que exige el plan de pago).
+- Las reglas solo permiten que el autor borre su publicación y que cada cuenta dé o quite **su propio** «me gusta». Las publicaciones no se pueden editar.
 
 ### Chat directo entre teléfonos (P2P)
 
