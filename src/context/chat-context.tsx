@@ -74,7 +74,7 @@ export function ChatProvider({ userId, signaling: injected, relay: injectedRelay
 
   const conversationsRef = useRef<Record<string, ChatMessage[]>>({});
   const loading = useRef(new Map<string, Promise<void>>());
-  const saveQueue = useRef(new Map<string, Promise<void>>());
+  const saveQueue = useRef(new Map<string, Promise<unknown>>());
   const sessions = useRef(new Map<string, PeerSession>());
   const answered = useRef(new Set<string>());
   const friendUids = useMemo(() => new Set(friends.map((f) => f.profile.uid)), [friends]);
@@ -112,15 +112,22 @@ export function ChatProvider({ userId, signaling: injected, relay: injectedRelay
       await ensureLoaded(uid);
       const before = conversationsRef.current[uid] ?? [];
       const after = change(before);
-      if (after === before) return;
+      if (after === before) return true;
       conversationsRef.current = { ...conversationsRef.current, [uid]: after };
       setConversations(conversationsRef.current);
       const previous = saveQueue.current.get(uid) ?? Promise.resolve();
       const next = previous
         .then(() => saveMessages(userId, uid, conversationsRef.current[uid] ?? []))
-        .catch(() => setError('No se pudo guardar el chat en el teléfono.'));
+        .then(
+          () => true,
+          () => {
+            setError('No se pudo guardar el chat en el teléfono.');
+            return false;
+          },
+        );
       saveQueue.current.set(uid, next);
-      await next;
+      /** `false` si no se pudo guardar en el teléfono. */
+      return next;
     },
     [ensureLoaded, userId],
   );
@@ -227,7 +234,8 @@ export function ChatProvider({ userId, signaling: injected, relay: injectedRelay
             const uri = await saveReceivedImage(userId, message.from, message.msgId, payload.data);
             received = { ...base, text: '', sentAt: payload.sentAt, image: { uri, width: payload.width, height: payload.height } };
           }
-          await update(message.from, (messages) => addReceived(messages, received));
+          // Si no se guardó en el teléfono, se deja en Firebase para reintentar.
+          if (!(await update(message.from, (messages) => addReceived(messages, received)))) throw new Error('save');
         }
         await relay.remove(message.ids);
       } catch {
