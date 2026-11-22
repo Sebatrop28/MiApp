@@ -25,6 +25,8 @@ export async function getGoogleIdToken(): Promise<string | null> {
   const { GoogleSignin, isCancelledResponse, isErrorWithCode, statusCodes } = await loadGoogleSignIn();
   try {
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+    // Sin esto, Google reutiliza en silencio la última cuenta y no deja elegir otra.
+    if (GoogleSignin.hasPreviousSignIn()) await GoogleSignin.signOut();
     const response = await GoogleSignin.signIn();
     if (isCancelledResponse(response)) return null;
     if (!response.data.idToken) {
@@ -43,6 +45,10 @@ export async function getGoogleIdToken(): Promise<string | null> {
 }
 
 export async function signOutFromGoogle(): Promise<void> {
-  if (!googleModule) return;
-  await googleModule.GoogleSignin.signOut().catch(() => {});
+  try {
+    const { GoogleSignin } = await loadGoogleSignIn();
+    await GoogleSignin.signOut();
+  } catch {
+    // Sin módulo nativo (Expo Go) no hay sesión de Google que cerrar.
+  }
 }
