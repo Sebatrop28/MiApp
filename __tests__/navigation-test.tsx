@@ -40,6 +40,17 @@ jest.mock('@/services/chat-media', () => ({
   readImageBase64: jest.fn(async () => 'QUJD'.repeat(5000)),
   saveReceivedImage: jest.fn(async (_u: string, _f: string, id: string) => `file:///chat/recibida-${id}.jpg`),
 }));
+jest.mock('@/services/chat-relay', () => ({
+  createFirestoreRelay: () => ({
+    publish: jest.fn(async () => {}),
+    subscribeIncoming: () => () => {},
+    subscribeOutgoing: () => () => {},
+    remove: jest.fn(async () => {}),
+    getPublicKey: jest.fn(async () => null),
+    setPublicKey: jest.fn(async () => {}),
+  }),
+}));
+jest.mock('@/services/chat-key-store', () => ({ loadSecretKey: async () => null, saveSecretKey: async () => {} }));
 jest.mock('@/services/chat-signaling', () => {
   const memory = jest.requireActual('../test-utils/fake-webrtc').createMemorySignaling();
   return { createFirestoreSignaling: () => memory.signaling, memory };
@@ -362,7 +373,7 @@ describe('chat', () => {
 
   it('guarda el mensaje como pendiente si el amigo no está conectado', async () => {
     await renderRouter(routes, { initialUrl: '/chat/u2' });
-    expect(await screen.findByText(/Conectando… tu amigo debe tener la app abierta/)).toBeTruthy();
+    expect(await screen.findByText(/Conectando… si tu amigo no tiene la app abierta/)).toBeTruthy();
 
     await fireEvent.changeText(screen.getByTestId('chat-input'), 'Te escribo luego');
     await fireEvent.press(screen.getByTestId('chat-send'));

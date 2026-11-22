@@ -44,8 +44,8 @@ export default function ChatScreen() {
 
 const STATUS_TEXT: Record<ConnectionState, string> = {
   open: 'Conectado: los mensajes van directo a su teléfono',
-  connecting: 'Conectando… tu amigo debe tener la app abierta',
-  idle: 'Sin conexión: los mensajes se enviarán al conectar',
+  connecting: 'Conectando… si tu amigo no tiene la app abierta, se le dejarán cifrados',
+  idle: 'Sin conexión directa: los mensajes se le dejarán cifrados',
 };
 
 function Conversation({ friend }: { friend: Friend }) {
@@ -162,7 +162,7 @@ function Conversation({ friend }: { friend: Friend }) {
             contentContainerStyle={styles.list}
             ListEmptyComponent={
               <ThemedText color="textSecondary" style={styles.empty}>
-                Los mensajes solo se guardan en tu teléfono y en el de @{friend.profile.username}. Ningún servidor los guarda.
+                Los mensajes se guardan solo en tu teléfono y en el de @{friend.profile.username}. Si no está conectado, esperan cifrados en Firebase y se borran al recibirlos.
               </ThemedText>
             }
             testID="chat-messages"
@@ -209,6 +209,12 @@ function Conversation({ friend }: { friend: Friend }) {
   );
 }
 
+const STATUS_LABEL = {
+  pending: { icon: 'schedule', label: 'Pendiente' },
+  relayed: { icon: 'done', label: 'En espera, cifrado' },
+  delivered: { icon: 'done_all', label: 'Entregado' },
+} as const;
+
 function Bubble({ message, own }: { message: ChatMessage; own: boolean }) {
   const { colors } = useAppTheme();
   return (
@@ -230,8 +236,8 @@ function Bubble({ message, own }: { message: ChatMessage; own: boolean }) {
           {formatNoteDate(message.sentAt)}
         </ThemedText>
         {own ? (
-          <View accessible accessibilityLabel={message.status === 'delivered' ? 'Entregado' : 'Pendiente'}>
-            <Icon name={message.status === 'delivered' ? 'done_all' : 'schedule'} size={14} color="onPrimary" />
+          <View accessible accessibilityLabel={STATUS_LABEL[message.status].label}>
+            <Icon name={STATUS_LABEL[message.status].icon} size={14} color="onPrimary" />
           </View>
         ) : null}
       </View>

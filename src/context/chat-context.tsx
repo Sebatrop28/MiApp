@@ -5,13 +5,17 @@ import { iceServers } from '@/config/firebase-config';
 import { useFriends } from '@/context/friends-context';
 import { decodeWire, encodeWire, ImageAssembler, MAX_MESSAGE_LENGTH, splitChunks } from '@/services/chat-protocol';
 import { imagesSupported, prepareImage, readImageBase64, saveReceivedImage } from '@/services/chat-media';
+import { decodeRelayPayload, getOrCreateKeyPair, open, seal, type ChatKeyPair } from '@/services/chat-crypto';
+import { createFirestoreRelay, type Relay, type RelayedMessage } from '@/services/chat-relay';
 import { createFirestoreSignaling } from '@/services/chat-signaling';
 import {
   addReceived,
   createMessageId,
   loadMessages,
   markDelivered,
+  markRelayed,
   pendingMessages,
+  relayedNoLongerWaiting,
   saveMessages,
   type ChatMessage,
 } from '@/services/chat-storage';
@@ -42,6 +46,10 @@ export interface ChatContextValue {
 
 /** Ofertas más viejas que esto se ignoran: quien llamaba ya se rindió. */
 const CALL_TTL_MS = 60_000;
+/** Si en este tiempo no se conecta directo con el amigo, el mensaje se deja cifrado en Firebase. */
+const RELAY_DELAY_MS = 8_000;
+const UNREADABLE_TEXT = '[Mensaje cifrado que no se pudo leer: la cuenta cambió de teléfono]';
+const IMAGE_UNSUPPORTED_TEXT = '[Imagen recibida: en la web no se pueden guardar imágenes]';
 
 const ChatContext = createContext<ChatContextValue | null>(null);
 
@@ -49,19 +57,26 @@ export interface ChatProviderProps extends PropsWithChildren {
   userId: string;
   /** Inyectable para pruebas. */
   signaling?: Signaling;
+  relay?: Relay;
 }
 
-export function ChatProvider({ userId, signaling: injected, children }: ChatProviderProps) {
+export function ChatProvider({ userId, signaling: injected, relay: injectedRelay, children }: ChatProviderProps) {
   const { friends, profile } = useFriends();
   const PeerConnection = useMemo(() => getPeerConnectionConstructor(), []);
   const signaling = useMemo(() => injected ?? createFirestoreSignaling(getFirebaseDb()), [injected]);
+  const relay = useMemo(() => injectedRelay ?? createFirestoreRelay(getFirebaseDb()), [injectedRelay]);
+  const keyPair = useRef<ChatKeyPair | null>(null);
+  const relaying = useRef(new Set<string>());
+  const relayTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const receivingRelayed = useRef(new Set<string>());
   const [conversations, setConversations] = useState<Record<string, ChatMessage[]>>({});
   const [connections, setConnections] = useState<Record<string, ConnectionState>>({});
   const [error, setError] = useState<string | null>(null);
 
   const conversationsRef = useRef<Record<string, ChatMessage[]>>({});
   const loading = useRef(new Map<string, Promise<void>>());
-  const saveQueue = useRef(new Map<string, Promise<void>>());
+  const saveQueue = useRef(new Map<string, Promise<unknown>>());
+  const saveFailed = useRef(new Set<string>());
   const sessions = useRef(new Map<string, PeerSession>());
   const answered = useRef(new Set<string>());
   const friendUids = useMemo(() => new Set(friends.map((f) => f.profile.uid)), [friends]);
@@ -99,15 +114,29 @@ export function ChatProvider({ userId, signaling: injected, children }: ChatProv
       await ensureLoaded(uid);
       const before = conversationsRef.current[uid] ?? [];
       const after = change(before);
-      if (after === before) return;
-      conversationsRef.current = { ...conversationsRef.current, [uid]: after };
-      setConversations(conversationsRef.current);
+      // Sin cambios no hace falta guardar, salvo que el último guardado haya fallado.
+      if (after === before && !saveFailed.current.has(uid)) return true;
+      if (after !== before) {
+        conversationsRef.current = { ...conversationsRef.current, [uid]: after };
+        setConversations(conversationsRef.current);
+      }
       const previous = saveQueue.current.get(uid) ?? Promise.resolve();
       const next = previous
         .then(() => saveMessages(userId, uid, conversationsRef.current[uid] ?? []))
-        .catch(() => setError('No se pudo guardar el chat en el teléfono.'));
+        .then(
+          () => {
+            saveFailed.current.delete(uid);
+            return true;
+          },
+          () => {
+            saveFailed.current.add(uid);
+            setError('No se pudo guardar el chat en el teléfono.');
+            return false;
+          },
+        );
       saveQueue.current.set(uid, next);
-      await next;
+      /** `false` si no se pudo guardar en el teléfono. */
+      return next;
     },
     [ensureLoaded, userId],
   );
@@ -148,6 +177,83 @@ export function ChatProvider({ userId, signaling: injected, children }: ChatProv
       }
     },
     [ensureLoaded, userId, transmit],
+  );
+
+  /** Cifra los mensajes pendientes con la llave pública del amigo y los deja en Firebase. */
+  const relayPending = useCallback(
+    async (uid: string) => {
+      const mine = keyPair.current;
+      if (!mine || sessions.current.get(uid)?.isOpen) return;
+      await ensureLoaded(uid);
+      const pending = pendingMessages(conversationsRef.current[uid] ?? [], userId).filter((m) => !relaying.current.has(m.id));
+      if (pending.length === 0) return;
+      // Sin llave pública el amigo aún no tiene esta versión: se queda pendiente para P2P.
+      const theirKey = await relay.getPublicKey(uid).catch(() => null);
+      if (!theirKey) return;
+      for (const m of pending) {
+        relaying.current.add(m.id);
+        try {
+          const payload = m.image
+            ? { t: 'img', sentAt: m.sentAt, width: m.image.width, height: m.image.height, data: await readImageBase64(m.image.uri) }
+            : { t: 'msg', sentAt: m.sentAt, text: m.text };
+          await relay.publish(userId, uid, m.id, seal(JSON.stringify(payload), theirKey, mine));
+          await update(uid, (messages) => markRelayed(messages, m.id, userId));
+        } catch {
+          setError('No se pudo dejar el mensaje en espera. Se reintentará al abrir la app.');
+        } finally {
+          relaying.current.delete(m.id);
+        }
+      }
+    },
+    [ensureLoaded, relay, update, userId],
+  );
+
+  const scheduleRelay = useCallback(
+    (uid: string) => {
+      if (relayTimers.current.has(uid)) return;
+      relayTimers.current.set(
+        uid,
+        setTimeout(() => {
+          relayTimers.current.delete(uid);
+          void relayPending(uid);
+        }, RELAY_DELAY_MS),
+      );
+    },
+    [relayPending],
+  );
+
+  const receiveRelayed = useCallback(
+    async (message: RelayedMessage) => {
+      const mine = keyPair.current;
+      const key = `${message.from}:${message.msgId}`;
+      // Si la lista de amigos aún no cargó, se deja en Firebase: se reintenta al cambiar la lista.
+      if (!mine || receivingRelayed.current.has(key) || !friendUidsRef.current.has(message.from)) return;
+      receivingRelayed.current.add(key);
+      try {
+        const theirKey = await relay.getPublicKey(message.from);
+        const plain = theirKey ? open(message.sealed, theirKey, mine) : null;
+        const payload = plain === null ? null : decodeRelayPayload(plain);
+        const base = { id: message.msgId, from: message.from, status: 'delivered' as const };
+        let received: ChatMessage;
+        if (!payload) {
+          received = { ...base, text: UNREADABLE_TEXT, sentAt: Date.now() };
+        } else if (payload.t === 'msg') {
+          received = { ...base, text: payload.text, sentAt: payload.sentAt };
+        } else if (!imagesSupported) {
+          received = { ...base, text: IMAGE_UNSUPPORTED_TEXT, sentAt: payload.sentAt };
+        } else {
+          const uri = await saveReceivedImage(userId, message.from, message.msgId, payload.data);
+          received = { ...base, text: '', sentAt: payload.sentAt, image: { uri, width: payload.width, height: payload.height } };
+        }
+        // Si no se guardó en el teléfono, se deja en Firebase para reintentar.
+        if (!(await update(message.from, (messages) => addReceived(messages, received)))) throw new Error('save');
+        await relay.remove(message.ids);
+      } catch {
+        // Se reintenta con la próxima actualización del buzón.
+        receivingRelayed.current.delete(key);
+      }
+    },
+    [relay, update, userId],
   );
 
   const createSession = useCallback(
@@ -245,12 +351,65 @@ export function ChatProvider({ userId, signaling: injected, children }: ChatProv
     );
   }, [PeerConnection, profile, signaling, userId, createSession]);
 
+  // Llave del chat de este teléfono y buzón de mensajes cifrados.
+  const [keyReady, setKeyReady] = useState(false);
+  useEffect(() => {
+    if (!profile) return;
+    let cancelled = false;
+    getOrCreateKeyPair(userId)
+      .then(async (pair) => {
+        if ((await relay.getPublicKey(userId)) !== pair.publicKey) await relay.setPublicKey(userId, pair.publicKey);
+        if (cancelled) return;
+        keyPair.current = pair;
+        setKeyReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) setError('No se pudo preparar el cifrado del chat. Revisa que publicaste las reglas de Firestore.');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [profile, relay, userId]);
+
+  useEffect(() => {
+    if (!keyReady) return;
+    const unsubscribeIncoming = relay.subscribeIncoming(
+      userId,
+      (messages) => messages.forEach((m) => void receiveRelayed(m)),
+      () => setError('No se pudo revisar los mensajes en espera.'),
+    );
+    const unsubscribeOutgoing = relay.subscribeOutgoing(
+      userId,
+      (waiting) => {
+        friendUidsRef.current.forEach((uid) => {
+          void update(uid, (messages) => {
+            const delivered = relayedNoLongerWaiting(messages, waiting.get(uid) ?? new Set(), userId);
+            return delivered.length > 0 ? markDelivered(messages, delivered, userId) : messages;
+          });
+        });
+      },
+      () => {},
+    );
+    return () => {
+      unsubscribeIncoming();
+      unsubscribeOutgoing();
+    };
+  }, [keyReady, relay, userId, receiveRelayed, update, friendUids]);
+
+  useEffect(() => {
+    const timers = relayTimers.current;
+    return () => timers.forEach((timer) => clearTimeout(timer));
+  }, []);
+
   // Al abrir la app, reintenta enviar lo que quedó pendiente.
   useEffect(() => {
     const retryPending = () => {
       friendUidsRef.current.forEach((uid) => {
         void ensureLoaded(uid).then(() => {
-          if (pendingMessages(conversationsRef.current[uid] ?? [], userId).length > 0) connect(uid);
+          if (pendingMessages(conversationsRef.current[uid] ?? [], userId).length > 0) {
+            connect(uid);
+            scheduleRelay(uid);
+          }
         });
       });
     };
@@ -259,7 +418,7 @@ export function ChatProvider({ userId, signaling: injected, children }: ChatProv
       if (state === 'active') retryPending();
     });
     return () => subscription.remove();
-  }, [friendUids, ensureLoaded, connect, userId]);
+  }, [friendUids, ensureLoaded, connect, scheduleRelay, userId, keyReady]);
 
   // Cierra la conexión con quien deja de ser amigo y todas al salir.
   useEffect(() => {
@@ -281,10 +440,13 @@ export function ChatProvider({ userId, signaling: injected, children }: ChatProv
       void update(uid, (messages) => [...messages, message]).then(() => {
         const session = sessions.current.get(uid);
         if (session?.isOpen) void transmit(session, message);
-        else connect(uid);
+        else {
+          connect(uid);
+          scheduleRelay(uid);
+        }
       });
     },
-    [update, connect, userId, transmit],
+    [update, connect, scheduleRelay, userId, transmit],
   );
 
   const sendImage = useCallback<ChatContextValue['sendImage']>(
@@ -295,9 +457,12 @@ export function ChatProvider({ userId, signaling: injected, children }: ChatProv
       await update(uid, (messages) => [...messages, message]);
       const session = sessions.current.get(uid);
       if (session?.isOpen) void transmit(session, message);
-      else connect(uid);
+      else {
+        connect(uid);
+        scheduleRelay(uid);
+      }
     },
-    [update, connect, userId, transmit],
+    [update, connect, scheduleRelay, userId, transmit],
   );
 
   const openConversation = useCallback((uid: string) => void ensureLoaded(uid), [ensureLoaded]);
