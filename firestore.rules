@@ -150,10 +150,11 @@ service cloud.firestore {
 
     // Publicaciones visibles para todas las cuentas con sesión iniciada.
     function likeChange(before, after) {
+      let unique = after.size() == after.toSet().size();
       let added = after.toSet().difference(before.toSet());
       let removed = before.toSet().difference(after.toSet());
-      return (added == [me()].toSet() && removed.size() == 0)
-        || (removed == [me()].toSet() && added.size() == 0);
+      return unique && ((added == [me()].toSet() && removed.size() == 0)
+        || (removed == [me()].toSet() && added.size() == 0));
     }
 
     match /posts/{id} {
