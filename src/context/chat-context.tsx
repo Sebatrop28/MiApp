@@ -217,26 +217,25 @@ export function ChatProvider({ userId, signaling: injected, relay: injectedRelay
     async (message: RelayedMessage) => {
       const mine = keyPair.current;
       const key = `${message.from}:${message.msgId}`;
-      if (!mine || receivingRelayed.current.has(key)) return;
+      // Si la lista de amigos aún no cargó, se deja en Firebase: se reintenta al cambiar la lista.
+      if (!mine || receivingRelayed.current.has(key) || !friendUidsRef.current.has(message.from)) return;
       receivingRelayed.current.add(key);
       try {
-        if (friendUidsRef.current.has(message.from)) {
-          const theirKey = await relay.getPublicKey(message.from);
-          const plain = theirKey ? open(message.sealed, theirKey, mine) : null;
-          const payload = plain === null ? null : decodeRelayPayload(plain);
-          const base = { id: message.msgId, from: message.from, status: 'delivered' as const };
-          let received: ChatMessage;
-          if (!payload) {
-            received = { ...base, text: UNREADABLE_TEXT, sentAt: Date.now() };
-          } else if (payload.t === 'msg') {
-            received = { ...base, text: payload.text, sentAt: payload.sentAt };
-          } else {
-            const uri = await saveReceivedImage(userId, message.from, message.msgId, payload.data);
-            received = { ...base, text: '', sentAt: payload.sentAt, image: { uri, width: payload.width, height: payload.height } };
-          }
-          // Si no se guardó en el teléfono, se deja en Firebase para reintentar.
-          if (!(await update(message.from, (messages) => addReceived(messages, received)))) throw new Error('save');
+        const theirKey = await relay.getPublicKey(message.from);
+        const plain = theirKey ? open(message.sealed, theirKey, mine) : null;
+        const payload = plain === null ? null : decodeRelayPayload(plain);
+        const base = { id: message.msgId, from: message.from, status: 'delivered' as const };
+        let received: ChatMessage;
+        if (!payload) {
+          received = { ...base, text: UNREADABLE_TEXT, sentAt: Date.now() };
+        } else if (payload.t === 'msg') {
+          received = { ...base, text: payload.text, sentAt: payload.sentAt };
+        } else {
+          const uri = await saveReceivedImage(userId, message.from, message.msgId, payload.data);
+          received = { ...base, text: '', sentAt: payload.sentAt, image: { uri, width: payload.width, height: payload.height } };
         }
+        // Si no se guardó en el teléfono, se deja en Firebase para reintentar.
+        if (!(await update(message.from, (messages) => addReceived(messages, received)))) throw new Error('save');
         await relay.remove(message.ids);
       } catch {
         // Se reintenta con la próxima actualización del buzón.
@@ -384,7 +383,7 @@ export function ChatProvider({ userId, signaling: injected, relay: injectedRelay
       unsubscribeIncoming();
       unsubscribeOutgoing();
     };
-  }, [keyReady, relay, userId, receiveRelayed, update]);
+  }, [keyReady, relay, userId, receiveRelayed, update, friendUids]);
 
   useEffect(() => {
     const timers = relayTimers.current;
