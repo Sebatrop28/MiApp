@@ -1,7 +1,9 @@
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet, View } from 'react-native';
 
+import { Avatar } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { ThemedText } from '@/components/ui/themed-text';
@@ -9,7 +11,7 @@ import { Radius, Spacing } from '@/constants/theme';
 import { useAppTheme } from '@/hooks/use-theme';
 import { deletePost, getPostImage, setLiked, toPostsErrorMessage, type Post } from '@/services/posts';
 import { formatNoteDate } from '@/utils/date';
-import { describeLink } from '@/utils/posts';
+import { describeLink, formatTimeLeft } from '@/utils/posts';
 
 export interface PostCardProps {
   post: Post;
@@ -18,7 +20,7 @@ export interface PostCardProps {
 }
 
 export function PostCard({ post, viewerUid }: PostCardProps) {
-  const { colors } = useAppTheme();
+  const router = useRouter();
   const liked = post.likes.includes(viewerUid);
   const own = post.author.uid === viewerUid;
 
@@ -42,19 +44,21 @@ export function PostCard({ post, viewerUid }: PostCardProps) {
   return (
     <Card style={styles.card} testID={`post-${post.id}`}>
       <View style={styles.header}>
-        <View style={[styles.avatar, { backgroundColor: colors.primaryMuted }]}>
-          <ThemedText variant="bodyStrong" color="primary">
-            {(post.author.displayName || post.author.username).charAt(0).toUpperCase()}
-          </ThemedText>
-        </View>
-        <View style={styles.headerText}>
-          <ThemedText variant="bodyStrong" numberOfLines={1}>
-            {post.author.displayName}
-          </ThemedText>
-          <ThemedText variant="caption" color="textSecondary" numberOfLines={1}>
-            @{post.author.username} · {formatNoteDate(post.createdAt)}
-          </ThemedText>
-        </View>
+        <Pressable
+          onPress={() => router.push(`/profile/${post.author.uid}`)}
+          accessibilityRole="button"
+          accessibilityLabel={`Ver perfil de ${post.author.displayName}`}
+          style={styles.author}>
+          <Avatar uid={post.author.uid} name={post.author.displayName || post.author.username} />
+          <View style={styles.headerText}>
+            <ThemedText variant="bodyStrong" numberOfLines={1}>
+              {post.author.displayName}
+            </ThemedText>
+            <ThemedText variant="caption" color="textSecondary" numberOfLines={1}>
+              @{post.author.username} · {formatNoteDate(post.createdAt)} · {formatTimeLeft(post.createdAt)}
+            </ThemedText>
+          </View>
+        </Pressable>
         {own ? (
           <Pressable onPress={confirmDelete} accessibilityRole="button" accessibilityLabel="Eliminar publicación" hitSlop={12}>
             <Icon name="delete" size={20} color="textSecondary" />
@@ -153,7 +157,7 @@ function PostLink({ link }: { link: string }) {
 const styles = StyleSheet.create({
   card: { gap: Spacing.md },
   header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  avatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  author: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   headerText: { flex: 1, gap: Spacing.xxs },
   image: { width: '100%', maxHeight: 480, borderRadius: Radius.md, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   link: {

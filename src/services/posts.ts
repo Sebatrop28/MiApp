@@ -4,22 +4,25 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   limit,
   onSnapshot,
   orderBy,
   query,
   updateDoc,
+  where,
   writeBatch,
   type Unsubscribe,
 } from 'firebase/firestore';
 
-import { normalizeLink } from '@/utils/posts';
+import { activeSince, chunk, normalizeLink } from '@/utils/posts';
 
 import { getFirebaseDb } from './firebase';
 import { toFriendsErrorMessage, type UserProfile } from './friends';
 
 /**
- * Publicaciones visibles para todas las cuentas. A diferencia del chat, se guardan en Firestore.
+ * Publicaciones de 24 horas. El muro muestra las propias y las de la gente que sigues.
+ * A diferencia del chat, se guardan en Firestore (sin cifrar) hasta que expiran.
  *
  * posts/{id}       { authorUid, author: perfil, text, link, image: { width, height } | null, likes: uid[], createdAt }
  * postImages/{id}  { data }   ← foto en base64, aparte para que el muro cargue rápido
@@ -40,7 +43,7 @@ export interface NewPost {
   image: { base64: string; width: number; height: number } | null;
 }
 
-/** Cuántas publicaciones recientes muestra el muro. */
+/** Máximo de publicaciones por cada grupo de 30 autores. */
 export const FEED_LIMIT = 50;
 
 export const toPostsErrorMessage = toFriendsErrorMessage;
@@ -59,12 +62,57 @@ function toPost(id: string, data: Record<string, unknown>): Post {
   };
 }
 
-export function subscribeToFeed(callback: (posts: Post[]) => void, onError: (message: string) => void): Unsubscribe {
-  return onSnapshot(
-    query(collection(getFirebaseDb(), 'posts'), orderBy('createdAt', 'desc'), limit(FEED_LIMIT)),
-    (snap) => callback(snap.docs.map((d) => toPost(d.id, d.data()))),
-    (e) => onError(toPostsErrorMessage(e)),
+const sortNewest = (posts: Post[]) => posts.sort((a, b) => b.createdAt - a.createdAt);
+
+/**
+ * Publicaciones activas (últimas 24 h) de estos autores, en tiempo real.
+ * Necesita el índice compuesto `posts (authorUid ↑, createdAt ↓)` de `firestore.indexes.json`.
+ */
+export function subscribeToFeed(
+  authorUids: readonly string[],
+  callback: (posts: Post[]) => void,
+  onError: (message: string) => void,
+): Unsubscribe {
+  const groups = chunk([...new Set(authorUids)]);
+  if (groups.length === 0) {
+    callback([]);
+    return () => {};
+  }
+  const results = new Map<number, Post[]>();
+  const since = activeSince();
+  const unsubscribers = groups.map((uids, index) =>
+    onSnapshot(
+      query(
+        collection(getFirebaseDb(), 'posts'),
+        where('authorUid', 'in', uids),
+        where('createdAt', '>', since),
+        orderBy('createdAt', 'desc'),
+        limit(FEED_LIMIT),
+      ),
+      (snap) => {
+        results.set(index, snap.docs.map((d) => toPost(d.id, d.data())));
+        if (results.size === groups.length) callback(sortNewest([...results.values()].flat()));
+      },
+      (e) => onError(toPostsErrorMessage(e)),
+    ),
   );
+  return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
+}
+
+/**
+ * Borra hasta 20 publicaciones expiradas de cualquier autor (las reglas lo permiten pasadas 24 h),
+ * para que Firestore no se llene sin necesitar TTL del plan de pago.
+ */
+export async function cleanupExpiredPosts(): Promise<void> {
+  const db = getFirebaseDb();
+  const snap = await getDocs(query(collection(db, 'posts'), where('createdAt', '<=', activeSince()), limit(20)));
+  if (snap.empty) return;
+  const batch = writeBatch(db);
+  snap.docs.forEach((d) => {
+    if (d.data().image) batch.delete(doc(db, 'postImages', d.id));
+    batch.delete(d.ref);
+  });
+  await batch.commit();
 }
 
 export async function createPost(author: UserProfile, post: NewPost): Promise<void> {

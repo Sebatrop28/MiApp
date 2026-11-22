@@ -108,6 +108,33 @@ function RootNavigator() {
             }}
           />
           <Stack.Screen
+            name="search"
+            options={{
+              headerShown: true,
+              title: 'Buscar personas',
+              headerStyle: { backgroundColor: colors.surface },
+              headerTintColor: colors.text,
+            }}
+          />
+          <Stack.Screen
+            name="profile/[uid]"
+            options={{
+              headerShown: true,
+              title: 'Perfil',
+              headerStyle: { backgroundColor: colors.surface },
+              headerTintColor: colors.text,
+            }}
+          />
+          <Stack.Screen
+            name="edit-profile"
+            options={{
+              headerShown: true,
+              title: 'Editar perfil',
+              headerStyle: { backgroundColor: colors.surface },
+              headerTintColor: colors.text,
+            }}
+          />
+          <Stack.Screen
             name="updates"
             options={{
               headerShown: true,
