@@ -2,13 +2,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { act, fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
 
-import AboutScreen from '@/app/(tabs)/about';
+import AboutScreen from '@/app/about';
 import FriendsScreen from '@/app/(tabs)/friends';
 import HomeScreen from '@/app/(tabs)/index';
 import NotesScreen from '@/app/(tabs)/notes';
 import SettingsScreen from '@/app/(tabs)/settings';
 import RootLayout from '@/app/_layout';
 import AddFriendScreen from '@/app/add-friend';
+import CommunitiesScreen from '@/app/(tabs)/communities';
+import CommunityScreen from '@/app/community/[id]';
+import NewCommunityScreen from '@/app/new-community';
 import NewPostScreen from '@/app/new-post';
 import EditProfileScreen from '@/app/edit-profile';
 import ProfileScreen from '@/app/profile/[uid]';
@@ -71,6 +74,7 @@ jest.mock('@/services/app-info', () => ({
 }));
 
 jest.mock('@/services/posts', () => jest.requireActual('../test-utils/mock-posts'));
+jest.mock('@/services/communities', () => jest.requireActual('../test-utils/mock-communities'));
 jest.mock('@/services/profiles', () => jest.requireActual('../test-utils/mock-profiles'));
 jest.mock('@/services/avatar-media', () => ({ prepareAvatar: jest.fn(async () => 'QUJD') }));
 jest.mock('@/services/post-media', () => ({
@@ -81,6 +85,7 @@ jest.mock('@/services/post-media', () => ({
 const mockAuth = jest.requireMock<typeof import('../test-utils/mock-auth')>('@/services/auth');
 const mockFriends = jest.requireMock<typeof import('../test-utils/mock-friends')>('@/services/friends');
 const mockPosts = jest.requireMock<typeof import('../test-utils/mock-posts')>('@/services/posts');
+const mockCommunities = jest.requireMock<typeof import('../test-utils/mock-communities')>('@/services/communities');
 const mockProfiles = jest.requireMock<typeof import('../test-utils/mock-profiles')>('@/services/profiles');
 const { memory: mockSignaling } = jest.requireMock<{ memory: ReturnType<typeof import('../test-utils/fake-webrtc').createMemorySignaling> }>(
   '@/services/chat-signaling',
@@ -96,7 +101,10 @@ const routes = {
   },
   '(tabs)/index': HomeScreen,
   '(tabs)/settings': SettingsScreen,
-  '(tabs)/about': AboutScreen,
+  about: AboutScreen,
+  '(tabs)/communities': CommunitiesScreen,
+  'new-community': NewCommunityScreen,
+  'community/[id]': CommunityScreen,
   '(tabs)/notes': NotesScreen,
   '(tabs)/friends': FriendsScreen,
   'add-friend': AddFriendScreen,
@@ -120,6 +128,7 @@ describe('navegación', () => {
     mockFriends.reset();
     mockPosts.reset();
     mockProfiles.reset();
+    mockCommunities.reset();
     mockAuth.setUser(TEST_USER);
   });
 
@@ -223,6 +232,36 @@ describe('navegación', () => {
     await fireEvent.press(screen.getByTestId('button-save-profile'));
     expect(await screen.findByText('Estudiante de Bolivia')).toBeTruthy();
     expect(mockProfiles.updateProfile).toHaveBeenLastCalledWith(TEST_USER.uid, { displayName: 'Ana', bio: 'Estudiante de Bolivia' });
+  });
+
+  it('crea una comunidad y publica texto en ella', async () => {
+    mockFriends.addProfile({ uid: TEST_USER.uid, username: 'ana', displayName: 'Ana' });
+    await renderRouter(routes, { initialUrl: '/communities' });
+
+    await fireEvent.press(await screen.findByTestId('button-new-community'));
+    await fireEvent.changeText(await screen.findByTestId('input-community-name'), 'Fotografía');
+    await fireEvent.changeText(screen.getByTestId('input-community-description'), 'Fotos de La Paz');
+    await fireEvent.press(screen.getByTestId('button-create-community'));
+    await waitFor(() => expect(screen).toHavePathname('/community/c1'));
+
+    await fireEvent.changeText(await screen.findByTestId('input-community-post'), 'Hola a todos');
+    await fireEvent.press(screen.getByTestId('button-community-publish'));
+    expect(await screen.findByText('Hola a todos')).toBeTruthy();
+    expect(mockCommunities.createCommunityPost).toHaveBeenCalledWith('c1', expect.objectContaining({ uid: TEST_USER.uid }), 'Hola a todos');
+  });
+
+  it('se une a una comunidad ajena para poder publicar', async () => {
+    mockFriends.addProfile({ uid: TEST_USER.uid, username: 'ana', displayName: 'Ana' });
+    const luis = { uid: 'u9', username: 'luis', displayName: 'Luis' };
+    mockCommunities.addCommunity({ id: 'k1', name: 'Música', description: 'Rock', ownerUid: 'u9', owner: luis, memberCount: 3, createdAt: 1 });
+    await renderRouter(routes, { initialUrl: '/communities' });
+
+    await fireEvent.press(await screen.findByTestId('community-k1'));
+    await waitFor(() => expect(screen).toHavePathname('/community/k1'));
+    expect(screen.queryByTestId('input-community-post')).toBeNull();
+    await fireEvent.press(await screen.findByTestId('button-toggle-membership'));
+    expect(await screen.findByTestId('input-community-post')).toBeTruthy();
+    expect(await screen.findByText(/4 miembros/)).toBeTruthy();
   });
 
   it('navega de Ajustes a Información', async () => {

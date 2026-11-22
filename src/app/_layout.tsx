@@ -143,6 +143,33 @@ function RootNavigator() {
               headerTintColor: colors.text,
             }}
           />
+          <Stack.Screen
+            name="about"
+            options={{
+              headerShown: true,
+              title: 'Información',
+              headerStyle: { backgroundColor: colors.surface },
+              headerTintColor: colors.text,
+            }}
+          />
+          <Stack.Screen
+            name="new-community"
+            options={{
+              headerShown: true,
+              title: 'Nueva comunidad',
+              headerStyle: { backgroundColor: colors.surface },
+              headerTintColor: colors.text,
+            }}
+          />
+          <Stack.Screen
+            name="community/[id]"
+            options={{
+              headerShown: true,
+              title: 'Comunidad',
+              headerStyle: { backgroundColor: colors.surface },
+              headerTintColor: colors.text,
+            }}
+          />
         </Stack.Protected>
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="sign-in" />

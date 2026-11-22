@@ -3,7 +3,8 @@ rules_version = '2';
 // Reglas de MiApp. Cópialas en Firebase → Firestore Database → Reglas → Publicar.
 // Solo hay perfiles, solicitudes, amistades, la señalización WebRTC (calls, se borra al conectar)
 // el buzón `relay` (mensajes cifrados de extremo a extremo que el destinatario borra al recibirlos)
-// las publicaciones de 24 h (`posts`, `postImages`), los seguidores (`follows`) y las fotos de perfil (`avatars`).
+// las publicaciones de 24 h (`posts`, `postImages`), los seguidores (`follows`), las fotos de perfil (`avatars`)
+// y las comunidades (`communities`, `communityMembers`).
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() {
@@ -239,6 +240,76 @@ service cloud.firestore {
         && (!exists(path('posts', id))
           || get(path('posts', id)).data.authorUid == me()
           || expired(get(path('posts', id)).data));
+    }
+
+    // Comunidades públicas: cualquiera se une; solo los miembros publican, y solo texto.
+    function memberPath(communityId, uid) {
+      return path('communityMembers', communityId + '_' + uid);
+    }
+
+    function isNow(value) {
+      return value is int && value > request.time.toMillis() - 300000 && value < request.time.toMillis() + 300000;
+    }
+
+    match /communities/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['name', 'nameLower', 'description', 'ownerUid', 'owner', 'memberCount', 'createdAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 3
+        && request.resource.data.name.size() <= 40
+        && request.resource.data.nameLower == request.resource.data.name.lower()
+        && request.resource.data.description is string
+        && request.resource.data.description.size() <= 300
+        && request.resource.data.ownerUid == me()
+        && request.resource.data.owner == storedProfile(me())
+        && request.resource.data.memberCount == 1
+        && isNow(request.resource.data.createdAt)
+        && existsAfter(memberPath(id, me()));
+      // El contador solo cambia en ±1 junto con la entrada o salida de quien escribe.
+      allow update: if signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount'])
+        && ((request.resource.data.memberCount == resource.data.memberCount + 1
+            && !exists(memberPath(id, me())) && existsAfter(memberPath(id, me())))
+          || (request.resource.data.memberCount == resource.data.memberCount - 1
+            && exists(memberPath(id, me())) && !existsAfter(memberPath(id, me()))));
+      allow delete: if false;
+
+      match /posts/{postId} {
+        allow read: if signedIn();
+        allow create: if signedIn()
+          && request.resource.data.keys().hasOnly(['authorUid', 'author', 'text', 'createdAt'])
+          && request.resource.data.authorUid == me()
+          && request.resource.data.author == storedProfile(me())
+          && request.resource.data.text is string
+          && request.resource.data.text.size() >= 1
+          && request.resource.data.text.size() <= 1000
+          && isNow(request.resource.data.createdAt)
+          && exists(memberPath(id, me()));
+        allow update: if false;
+        allow delete: if signedIn()
+          && (resource.data.authorUid == me() || get(path('communities', id)).data.ownerUid == me());
+      }
+    }
+
+    match /communityMembers/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['uid', 'communityId', 'name', 'joinedAt'])
+        && request.resource.data.uid == me()
+        && request.resource.data.communityId is string
+        && id == request.resource.data.communityId + '_' + me()
+        && request.resource.data.joinedAt is int
+        && request.resource.data.name == getAfter(path('communities', request.resource.data.communityId)).data.name
+        && (exists(path('communities', request.resource.data.communityId))
+          ? getAfter(path('communities', request.resource.data.communityId)).data.memberCount
+            == get(path('communities', request.resource.data.communityId)).data.memberCount + 1
+          : getAfter(path('communities', request.resource.data.communityId)).data.ownerUid == me());
+      allow update: if false;
+      allow delete: if signedIn()
+        && resource.data.uid == me()
+        && getAfter(path('communities', resource.data.communityId)).data.memberCount
+          == get(path('communities', resource.data.communityId)).data.memberCount - 1;
     }
 
     function otherMember(members) {

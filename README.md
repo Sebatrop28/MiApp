@@ -27,7 +27,7 @@ Base profesional de una aplicación Android construida con **React Native + Expo
 
 | Área | Detalle |
 | --- | --- |
-| Navegación | Expo Router con barra de pestañas nativa (Material 3 en Android): **Inicio**, **Notas**, **Amigos**, **Ajustes** e **Información**. Rutas tipadas (`typedRoutes`). Pantalla 404 personalizada. |
+| Navegación | Expo Router con barra de pestañas nativa (Material 3 en Android): **Inicio**, **Notas**, **Amigos**, **Ajustes** y **Comunidades**. Rutas tipadas (`typedRoutes`). Pantalla 404 personalizada. |
 | Diseño | Sistema de diseño propio (`src/constants/theme.ts`): colores claro/oscuro, espaciado, radios y tipografía. Iconos Material Symbols vía `expo-symbols`. Contenido con ancho máximo para tablets. |
 | Cuentas | Hay que iniciar sesión para usar la app. Registro con nombre, correo y contraseña (se envía un correo de verificación), inicio de sesión con correo o con **Google** (Android), recuperación de contraseña y cierre de sesión en *Ajustes*. La sesión se recuerda entre aperturas. Firebase Auth. |
 | Actualizaciones | *Ajustes → Actualizaciones*: buscar e instalar versiones nuevas sin reinstalar el APK (EAS Update) y opción **Actualizar automáticamente** (al abrir la app descarga la versión nueva y ofrece reiniciar). |
@@ -36,7 +36,8 @@ Base profesional de una aplicación Android construida con **React Native + Expo
 | Notas | Bloc de notas: crea, edita y elimina notas. Todo lo que escribes se guarda automáticamente en el dispositivo (AsyncStorage), aunque cierres la app. Cada cuenta tiene sus propias notas en ese dispositivo. La primera línea se usa como título; las notas vacías se descartan al salir. |
 | Ajustes | Tema (Sistema / Claro / Oscuro), notificaciones y modo de prueba de errores. Se guardan en el dispositivo con AsyncStorage. |
 | Estados | Esqueletos de carga, indicadores, «deslizar para actualizar», mensajes de error con botón **Reintentar**, avisos no bloqueantes y `ErrorBoundary` global. |
-| Información | Versión, compilación, identificador, fecha de instalación, datos del dispositivo y tecnologías (`expo-application`, `expo-device`, `expo-constants`). |
+| Comunidades | Espacios públicos que crea cualquier persona con nombre y descripción. Se buscan por nombre y cualquiera se **une** o **sale** con un botón. Solo los miembros publican, y **solo texto** (hasta 1000 caracteres). Cada autor borra lo suyo y quien creó la comunidad puede borrar cualquier publicación. No caducan. |
+| Información | *Ajustes → Información de la app*: versión, compilación, identificador, fecha de instalación, datos del dispositivo y tecnologías (`expo-application`, `expo-device`, `expo-constants`). |
 | Calidad | TypeScript estricto, ESLint (`eslint-config-expo`), Jest + React Native Testing Library. |
 | Compilación | `eas.json` con perfil `preview` (APK) y `production` (AAB para Google Play). |
 
@@ -126,6 +127,15 @@ A diferencia del chat, las publicaciones **sí se guardan en Firestore, sin cifr
 - **Índice obligatorio** (`firestore.indexes.json`): sin él, Inicio muestra un error. Créalo en Firebase → *Firestore Database* → *Índices* → *Compuesto* → *Crear índice*: colección `posts`, campos `authorUid` *Ascendente* y `createdAt` *Descendente*, ámbito *Colección*. O con la CLI: `npx firebase-tools deploy --only firestore:indexes`.
 - `postImages/{id}`: la foto en base64, en un documento aparte para que el muro cargue rápido. Se reduce a 1080 px y se comprime en JPEG hasta que ocupe menos de 900 KB, así que no hace falta Firebase Storage (que exige el plan de pago).
 - Las reglas solo permiten que el autor borre su publicación y que cada cuenta dé o quite **su propio** «me gusta». Las publicaciones no se pueden editar.
+
+### Comunidades
+
+Como las publicaciones, se guardan en Firestore **sin cifrar**.
+
+- `communities/{id}`: nombre, `nameLower` (para buscar por el comienzo del nombre), descripción, creador y número de miembros. No se pueden editar ni borrar.
+- `communityMembers/{comunidad_uid}`: quién está en cada comunidad. Al unirse o salir, las reglas exigen que el contador cambie exactamente en ±1 en la misma operación.
+- `communities/{id}/posts/{postId}`: autor, texto y fecha. Las reglas solo aceptan esos campos (nada de fotos ni enlaces), exigen ser miembro para publicar y solo dejan borrar al autor o a quien creó la comunidad.
+- No necesitan índices compuestos: todas las consultas usan un solo campo.
 
 ### Chat directo entre teléfonos (P2P)
 
@@ -295,7 +305,10 @@ MiApp/
 │   │   │   ├── index.tsx      # Inicio      → /
 │   │   │   ├── notes.tsx      # Notas       → /notes
 │   │   │   ├── settings.tsx   # Ajustes     → /settings
-│   │   │   └── about.tsx      # Información → /about
+│   │   │   └── communities.tsx # Comunidades → /communities
+│   │   ├── about.tsx          # Información de la app (desde Ajustes) → /about
+│   │   ├── new-community.tsx  # Crear comunidad → /new-community
+│   │   ├── community/[id].tsx # Una comunidad y sus publicaciones → /community/:id
 │   │   ├── note/[id].tsx      # Editor de una nota → /note/:id
 │   │   ├── sign-in.tsx        # Iniciar sesión → /sign-in
 │   │   ├── sign-up.tsx        # Crear cuenta → /sign-up
