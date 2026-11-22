@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { subscribeToFeed, type Post } from '@/services/posts';
 import { NetworkError } from '@/utils/errors';
+import { POST_TTL_MS } from '@/utils/posts';
 
 export type FeedState =
   | { status: 'loading'; posts: Post[]; error: null }
@@ -34,7 +35,18 @@ export function useFeed(authorUids: readonly string[] | null, simulateError = fa
     );
   }, [simulateError, authors, key]);
 
-  const posts = snapshot?.posts ?? [];
+  const [now, setNow] = useState(() => Date.now());
+  const loaded = snapshot?.posts;
+
+  // La consulta fija el corte de 24 h al suscribirse: aquí se ocultan las que caducan después.
+  useEffect(() => {
+    if (!loaded?.length) return;
+    const next = Math.min(...loaded.map((p) => p.createdAt + POST_TTL_MS));
+    const timer = setTimeout(() => setNow(Date.now()), Math.max(0, next - Date.now()) + 1000);
+    return () => clearTimeout(timer);
+  }, [loaded, now]);
+
+  const posts = (loaded ?? []).filter((p) => p.createdAt + POST_TTL_MS > now);
   if (simulateError) return { status: 'error', posts, error: new NetworkError().message, retry };
   if (!snapshot || snapshot.key !== key) return { status: 'loading', posts, error: null, retry };
   if (snapshot.error) return { status: 'error', posts, error: snapshot.error, retry };
