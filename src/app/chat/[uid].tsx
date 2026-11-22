@@ -1,8 +1,9 @@
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Banner } from '@/components/feedback/banner';
@@ -51,6 +52,7 @@ function Conversation({ friend }: { friend: Friend }) {
   const uid = friend.profile.uid;
   const router = useRouter();
   const { colors } = useAppTheme();
+  const headerHeight = useHeaderHeight();
   const { user } = useAuth();
   const { removeFriend } = useFriends();
   const {
@@ -130,7 +132,8 @@ function Conversation({ friend }: { friend: Friend }) {
           ),
         }}
       />
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      {/* Android es edge-to-edge: la ventana ya no se redimensiona con el teclado, así que hace falta `padding` también ahí. */}
+      <KeyboardAvoidingView style={styles.flex} behavior="padding" keyboardVerticalOffset={headerHeight}>
         <View style={styles.content}>
           {!supported ? (
             <Banner message="El chat directo necesita el APK de MiApp; no funciona en Expo Go." />

@@ -1,6 +1,7 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/ui/icon';
@@ -35,6 +36,7 @@ function NoteEditor({ note }: { note: Note }) {
   const { id } = note;
   const router = useRouter();
   const { colors } = useAppTheme();
+  const headerHeight = useHeaderHeight();
   const { getNote, updateNote, deleteNote } = useNotes();
   const [text, setText] = useState(note.text);
   const deletedRef = useRef(false);
@@ -87,7 +89,7 @@ function NoteEditor({ note }: { note: Note }) {
           ),
         }}
       />
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <KeyboardAvoidingView style={styles.flex} behavior="padding" keyboardVerticalOffset={headerHeight}>
         <View style={styles.content}>
           <ThemedText variant="caption" color="textSecondary">
             Guardado automáticamente · {formatNoteDate(note.updatedAt)}
