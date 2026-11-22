@@ -1,3 +1,26 @@
+/** Las publicaciones duran 24 horas (mismo valor que `firestore.rules`). */
+export const POST_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** Momento a partir del cual una publicación sigue activa. */
+export const activeSince = (now: number = Date.now()) => now - POST_TTL_MS;
+
+/** «Quedan 5 h», «Quedan 20 min» o «Expira pronto». */
+export function formatTimeLeft(createdAt: number, now: number = Date.now()): string {
+  const left = createdAt + POST_TTL_MS - now;
+  if (left <= 60_000) return 'Expira pronto';
+  const hours = Math.floor(left / 3_600_000);
+  return hours >= 1 ? `Quedan ${hours} h` : `Quedan ${Math.ceil(left / 60_000)} min`;
+}
+
+/** Firestore admite hasta 30 valores en un filtro `in`. */
+export function chunk<T>(items: readonly T[], size: number = 30): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
+  return chunks;
+}
+
+export const BIO_MAX_LENGTH = 160;
+
 /** Mismos límites que `firestore.rules`. */
 export const POST_TEXT_MAX_LENGTH = 1000;
 export const POST_LINK_MAX_LENGTH = 500;

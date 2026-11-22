@@ -10,6 +10,9 @@ import SettingsScreen from '@/app/(tabs)/settings';
 import RootLayout from '@/app/_layout';
 import AddFriendScreen from '@/app/add-friend';
 import NewPostScreen from '@/app/new-post';
+import EditProfileScreen from '@/app/edit-profile';
+import ProfileScreen from '@/app/profile/[uid]';
+import SearchScreen from '@/app/search';
 import ChatScreen from '@/app/chat/[uid]';
 import { decodeWire, encodeWire } from '@/services/chat-protocol';
 import { chatStorageKey } from '@/services/chat-storage';
@@ -68,6 +71,8 @@ jest.mock('@/services/app-info', () => ({
 }));
 
 jest.mock('@/services/posts', () => jest.requireActual('../test-utils/mock-posts'));
+jest.mock('@/services/profiles', () => jest.requireActual('../test-utils/mock-profiles'));
+jest.mock('@/services/avatar-media', () => ({ prepareAvatar: jest.fn(async () => 'QUJD') }));
 jest.mock('@/services/post-media', () => ({
   preparePostImage: jest.fn(async () => ({ uri: 'file:///foto.jpg', base64: 'QUJD', width: 4, height: 3 })),
 }));
@@ -76,6 +81,7 @@ jest.mock('@/services/post-media', () => ({
 const mockAuth = jest.requireMock<typeof import('../test-utils/mock-auth')>('@/services/auth');
 const mockFriends = jest.requireMock<typeof import('../test-utils/mock-friends')>('@/services/friends');
 const mockPosts = jest.requireMock<typeof import('../test-utils/mock-posts')>('@/services/posts');
+const mockProfiles = jest.requireMock<typeof import('../test-utils/mock-profiles')>('@/services/profiles');
 const { memory: mockSignaling } = jest.requireMock<{ memory: ReturnType<typeof import('../test-utils/fake-webrtc').createMemorySignaling> }>(
   '@/services/chat-signaling',
 );
@@ -95,6 +101,9 @@ const routes = {
   '(tabs)/friends': FriendsScreen,
   'add-friend': AddFriendScreen,
   'new-post': NewPostScreen,
+  search: SearchScreen,
+  'profile/[uid]': ProfileScreen,
+  'edit-profile': EditProfileScreen,
   'chat/[uid]': ChatScreen,
   'note/[id]': NoteScreen,
   'sign-in': SignInScreen,
@@ -110,10 +119,31 @@ describe('navegación', () => {
     mockAuth.reset();
     mockFriends.reset();
     mockPosts.reset();
+    mockProfiles.reset();
     mockAuth.setUser(TEST_USER);
   });
 
-  it('muestra en Inicio las publicaciones de todos y permite dar me gusta', async () => {
+  it('muestra en Inicio solo las publicaciones de la gente que sigues y permite dar me gusta', async () => {
+    mockFriends.addProfile({ uid: TEST_USER.uid, username: 'ana', displayName: 'Ana' });
+    await mockProfiles.follow(TEST_USER.uid, 'u9');
+    mockPosts.addPost({
+      id: 'x2',
+      author: { uid: 'u8', username: 'desconocido', displayName: 'Desconocido' },
+      text: 'No la sigues',
+      link: null,
+      image: null,
+      likes: [],
+      createdAt: Date.now(),
+    });
+    mockPosts.addPost({
+      id: 'x3',
+      author: { uid: 'u9', username: 'luis', displayName: 'Luis' },
+      text: 'Ya expiró',
+      link: null,
+      image: null,
+      likes: [],
+      createdAt: Date.now() - 25 * 60 * 60 * 1000,
+    });
     mockPosts.addPost({
       id: 'x1',
       author: { uid: 'u9', username: 'luis', displayName: 'Luis' },
@@ -126,8 +156,10 @@ describe('navegación', () => {
     await renderRouter(routes, { initialUrl: '/' });
     expect(await screen.findByText('Hola a todos')).toBeTruthy();
     expect(screen.getByText('Tema 1.pdf')).toBeTruthy();
+    expect(screen.getByText(/Quedan 2[34] h/)).toBeTruthy();
+    expect(screen.queryByText('No la sigues')).toBeNull();
+    expect(screen.queryByText('Ya expiró')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Eliminar publicación' })).toBeNull();
-    expect(await screen.findByText('Para publicar, primero elige tu nombre de usuario en Amigos.')).toBeTruthy();
 
     await fireEvent.press(screen.getByTestId('like-x1'));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Quitar me gusta' })).toBeTruthy());
@@ -137,7 +169,7 @@ describe('navegación', () => {
   it('publica un mensaje con foto y enlace desde Inicio', async () => {
     mockFriends.addProfile({ uid: TEST_USER.uid, username: 'ana', displayName: 'Ana' });
     await renderRouter(routes, { initialUrl: '/' });
-    expect(await screen.findByText('Todavía no hay publicaciones. ¡Sé la primera persona en compartir algo!')).toBeTruthy();
+    expect(await screen.findByText('Sigue a personas para ver aquí lo que publican.')).toBeTruthy();
 
     await fireEvent.press(screen.getByTestId('button-new-post'));
     await waitFor(() => expect(screen).toHavePathname('/new-post'));
@@ -158,6 +190,39 @@ describe('navegación', () => {
       { uid: TEST_USER.uid, username: 'ana', displayName: 'Ana' },
       { text: 'Mi primera publicación', link: 'drive.google.com/file/d/abc/view', image: { base64: 'QUJD', width: 4, height: 3 } },
     );
+  });
+
+  it('busca a alguien, lo sigue y edita su propio perfil', async () => {
+    const ana = { uid: TEST_USER.uid, username: 'ana', displayName: 'Ana' };
+    const luis = { uid: 'u9', username: 'luis', displayName: 'Luis' };
+    mockFriends.addProfile(ana);
+    mockFriends.addProfile(luis);
+    mockProfiles.addProfile(ana);
+    mockProfiles.addProfile({ ...luis, bio: 'Me gusta la música' });
+    await renderRouter(routes, { initialUrl: '/' });
+
+    await fireEvent.press(await screen.findByTestId('button-search-people'));
+    await fireEvent.changeText(await screen.findByTestId('input-search-username'), '@luis');
+    await fireEvent.press(screen.getByTestId('button-search'));
+    await fireEvent.press(await screen.findByTestId('search-result'));
+    await waitFor(() => expect(screen).toHavePathname('/profile/u9'));
+    expect(await screen.findByText('Me gusta la música')).toBeTruthy();
+
+    await fireEvent.press(await screen.findByRole('button', { name: 'Seguir' }));
+    expect(await screen.findByRole('button', { name: 'Dejar de seguir' })).toBeTruthy();
+    expect(mockProfiles.follow).toHaveBeenLastCalledWith(TEST_USER.uid, 'u9');
+    expect(await screen.findByText('1 seguidores · 0 seguidos')).toBeTruthy();
+
+    await act(() => router.back());
+    await act(() => router.back());
+    await waitFor(() => expect(screen).toHavePathname('/'));
+    await fireEvent.press(await screen.findByTestId('button-my-profile'));
+    await waitFor(() => expect(screen).toHavePathname('/profile/u1'));
+    await fireEvent.press(await screen.findByTestId('button-edit-profile'));
+    await fireEvent.changeText(await screen.findByTestId('input-bio'), 'Estudiante de Bolivia');
+    await fireEvent.press(screen.getByTestId('button-save-profile'));
+    expect(await screen.findByText('Estudiante de Bolivia')).toBeTruthy();
+    expect(mockProfiles.updateProfile).toHaveBeenLastCalledWith(TEST_USER.uid, { displayName: 'Ana', bio: 'Estudiante de Bolivia' });
   });
 
   it('navega de Ajustes a Información', async () => {

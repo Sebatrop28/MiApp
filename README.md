@@ -31,7 +31,8 @@ Base profesional de una aplicación Android construida con **React Native + Expo
 | Diseño | Sistema de diseño propio (`src/constants/theme.ts`): colores claro/oscuro, espaciado, radios y tipografía. Iconos Material Symbols vía `expo-symbols`. Contenido con ancho máximo para tablets. |
 | Cuentas | Hay que iniciar sesión para usar la app. Registro con nombre, correo y contraseña (se envía un correo de verificación), inicio de sesión con correo o con **Google** (Android), recuperación de contraseña y cierre de sesión en *Ajustes*. La sesión se recuerda entre aperturas. Firebase Auth. |
 | Actualizaciones | *Ajustes → Actualizaciones*: buscar e instalar versiones nuevas sin reinstalar el APK (EAS Update) y opción **Actualizar automáticamente** (al abrir la app descarga la versión nueva y ofrece reiniciar). |
-| Inicio | Muro de publicaciones visible para todas las cuentas: texto (hasta 1000 caracteres), una foto y un enlace a un archivo o página (por ejemplo, de Google Drive). Se puede dar «me gusta» y borrar las publicaciones propias. Hace falta tener nombre de usuario (pestaña Amigos) para publicar. |
+| Inicio | Muro con tus publicaciones y las de la gente que **sigues**: texto (hasta 1000 caracteres), una foto y un enlace a un archivo o página (por ejemplo, de Google Drive). Cada publicación dura **24 horas** y muestra cuánto le queda. Se puede dar «me gusta» y borrar las propias. Hace falta tener nombre de usuario (pestaña Amigos) para publicar. |
+| Perfiles | Foto de perfil, nombre visible y descripción (hasta 160 caracteres) editables. Cada perfil muestra seguidores, seguidos, sus publicaciones activas y el botón **Seguir** (sin aceptación; aparte de Amigos, que sirve para el chat). Búsqueda de personas por @usuario. |
 | Notas | Bloc de notas: crea, edita y elimina notas. Todo lo que escribes se guarda automáticamente en el dispositivo (AsyncStorage), aunque cierres la app. Cada cuenta tiene sus propias notas en ese dispositivo. La primera línea se usa como título; las notas vacías se descartan al salir. |
 | Ajustes | Tema (Sistema / Claro / Oscuro), notificaciones y modo de prueba de errores. Se guardan en el dispositivo con AsyncStorage. |
 | Estados | Esqueletos de carga, indicadores, «deslizar para actualizar», mensajes de error con botón **Reintentar**, avisos no bloqueantes y `ErrorBoundary` global. |
@@ -115,9 +116,14 @@ No hace falta recompilar el APK: Firestore usa el mismo `firebaseConfig`. Si la 
 
 ### Publicaciones (Inicio)
 
-A diferencia del chat, las publicaciones **sí se guardan en Firestore, sin cifrar**, para que cualquier cuenta con sesión iniciada pueda verlas.
+A diferencia del chat, las publicaciones **sí se guardan en Firestore, sin cifrar**, pero solo durante 24 horas.
 
-- `posts/{id}`: autor (copia del perfil, verificada por las reglas), texto, enlace, tamaño de la foto, lista de «me gusta» y fecha. El muro muestra las 50 más recientes en tiempo real.
+- `posts/{id}`: autor (copia del perfil, verificada por las reglas), texto, enlace, tamaño de la foto, lista de «me gusta» y fecha. Inicio muestra en tiempo real las 50 más recientes de las últimas 24 h de ti y de quienes sigues.
+- **Caducidad:** pasadas 24 h dejan de mostrarse. Al abrir Inicio, la app borra hasta 20 publicaciones caducadas (y sus fotos); las reglas permiten a cualquier cuenta borrar una publicación caducada, pero no una activa ajena.
+- `follows/{seguidor_seguido}`: quién sigue a quién. Solo puedes crear o borrar los tuyos.
+- `profiles/{uid}`: además del usuario, `displayName`, `bio` y `avatarUpdatedAt` son editables por su dueño; el @usuario no se puede cambiar.
+- `avatars/{uid}`: la foto de perfil, recortada a 256×256 px en JPEG (menos de 200 KB). Se guarda en el teléfono y solo se vuelve a descargar cuando cambia.
+- **Índice obligatorio** (`firestore.indexes.json`): sin él, Inicio muestra un error. Créalo en Firebase → *Firestore Database* → *Índices* → *Compuesto* → *Crear índice*: colección `posts`, campos `authorUid` *Ascendente* y `createdAt` *Descendente*, ámbito *Colección*. O con la CLI: `npx firebase-tools deploy --only firestore:indexes`.
 - `postImages/{id}`: la foto en base64, en un documento aparte para que el muro cargue rápido. Se reduce a 1080 px y se comprime en JPEG hasta que ocupe menos de 900 KB, así que no hace falta Firebase Storage (que exige el plan de pago).
 - Las reglas solo permiten que el autor borre su publicación y que cada cuenta dé o quite **su propio** «me gusta». Las publicaciones no se pueden editar.
 

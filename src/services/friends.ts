@@ -189,10 +189,17 @@ export function acceptFriendRequest(request: FriendRequest): Promise<void> {
   return run(async () => {
     const db = getFirebaseDb();
     const members = [request.from.uid, request.to.uid].sort();
+    // Perfiles actuales: el nombre visible pudo cambiar desde que se envió la solicitud.
+    const [from, to] = await Promise.all(
+      [request.from, request.to].map(async (stale) => {
+        const snap = await getDoc(doc(db, 'profiles', stale.uid));
+        return snap.exists() ? toProfile(snap.data()) : stale;
+      }),
+    );
     const batch = writeBatch(db);
     batch.set(doc(db, 'friendships', friendshipId(request.from.uid, request.to.uid)), {
       members,
-      profiles: { [request.from.uid]: request.from, [request.to.uid]: request.to },
+      profiles: { [from.uid]: from, [to.uid]: to },
       createdAt: Date.now(),
     });
     batch.delete(doc(db, 'friendRequests', request.id));

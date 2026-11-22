@@ -2,7 +2,7 @@ import type { NewPost, Post } from '@/services/posts';
 import type { UserProfile } from '@/services/friends';
 
 /** Sustituto en memoria de `@/services/posts` para las pruebas (sin Firestore). */
-type Listener = (posts: Post[]) => void;
+type Listener = () => void;
 
 const posts = new Map<string, Post>();
 const images = new Map<string, string>();
@@ -10,7 +10,7 @@ const listeners = new Set<Listener>();
 let counter = 0;
 
 const sorted = () => [...posts.values()].sort((a, b) => b.createdAt - a.createdAt);
-const emit = () => listeners.forEach((listener) => listener(sorted()));
+const emit = () => listeners.forEach((listener) => listener());
 
 export const toPostsErrorMessage = (error: unknown) => (error instanceof Error ? error.message : 'Error');
 
@@ -27,13 +27,17 @@ export function addPost(post: Post, image?: string) {
   emit();
 }
 
-export function subscribeToFeed(callback: Listener) {
-  listeners.add(callback);
-  callback(sorted());
+export function subscribeToFeed(authorUids: readonly string[], callback: (posts: Post[]) => void) {
+  const since = Date.now() - 24 * 60 * 60 * 1000;
+  const listener = () => callback(sorted().filter((p) => authorUids.includes(p.author.uid) && p.createdAt > since));
+  listeners.add(listener);
+  listener();
   return () => {
-    listeners.delete(callback);
+    listeners.delete(listener);
   };
 }
+
+export const cleanupExpiredPosts = jest.fn(async () => {});
 
 export const createPost = jest.fn(async (author: UserProfile, post: NewPost) => {
   counter += 1;
