@@ -98,9 +98,23 @@ const memory = new Map<string, CachedAvatar>();
 const checkedThisSession = new Set<string>();
 const inFlight = new Map<string, Promise<string | null>>();
 
+const avatarListeners = new Map<string, Set<() => void>>();
+
+/** Avisa cuando cambia la foto guardada de `uid` (p. ej. tras editar el perfil). */
+export function subscribeToAvatarChanges(uid: string, listener: () => void): () => void {
+  const set = avatarListeners.get(uid) ?? new Set();
+  set.add(listener);
+  avatarListeners.set(uid, set);
+  return () => {
+    set.delete(listener);
+  };
+}
+
 async function saveCachedAvatar(uid: string, entry: CachedAvatar) {
+  const changed = memory.get(uid)?.data !== entry.data;
   memory.set(uid, entry);
   checkedThisSession.add(uid);
+  if (changed) avatarListeners.get(uid)?.forEach((listener) => listener());
   await AsyncStorage.setItem(avatarKey(uid), JSON.stringify(entry)).catch(() => {});
 }
 

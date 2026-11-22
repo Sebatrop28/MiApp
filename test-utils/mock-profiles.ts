@@ -64,3 +64,4 @@ export const updateProfile = jest.fn(async (uid: string, changes: { displayName:
 export const setAvatar = jest.fn(async () => {});
 export const removeAvatar = jest.fn(async () => {});
 export const getAvatar = jest.fn(async () => null);
+export const subscribeToAvatarChanges = () => () => {};

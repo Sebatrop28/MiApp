@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { useAppTheme } from '@/hooks/use-theme';
-import { getAvatar } from '@/services/profiles';
+import { getAvatar, subscribeToAvatarChanges } from '@/services/profiles';
 
 import { ThemedText } from './themed-text';
 
@@ -19,7 +19,10 @@ export interface AvatarProps {
 export function Avatar({ uid, name, size = 40, version }: AvatarProps) {
   const { colors } = useAppTheme();
   const [loaded, setLoaded] = useState<{ key: string; data: string | null } | null>(null);
-  const key = `${uid}:${version}`;
+  const [revision, setRevision] = useState(0);
+  const key = `${uid}:${version}:${revision}`;
+
+  useEffect(() => subscribeToAvatarChanges(uid, () => setRevision((n) => n + 1)), [uid]);
 
   useEffect(() => {
     let active = true;
