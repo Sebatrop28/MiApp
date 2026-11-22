@@ -71,3 +71,5 @@ export const deletePost = jest.fn(async (post: Post) => {
   images.delete(post.id);
   emit();
 });
+
+export const splitIndexLink = (message: string) => ({ text: message, url: null });

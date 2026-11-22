@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { Banner } from '@/components/feedback/banner';
 import { ErrorState } from '@/components/feedback/error-state';
@@ -19,7 +19,7 @@ import { useSettings } from '@/context/settings-context';
 import { useFeed } from '@/hooks/use-feed';
 import { useFollowing } from '@/hooks/use-following';
 import { useAppTheme } from '@/hooks/use-theme';
-import { cleanupExpiredPosts } from '@/services/posts';
+import { cleanupExpiredPosts, splitIndexLink } from '@/services/posts';
 import { getGreeting } from '@/utils/greeting';
 
 let cleanedUp = false;
@@ -80,9 +80,7 @@ export default function HomeScreen() {
       {followingError ? <Banner tone="error" message={followingError} /> : null}
       {profile && feed.status === 'loading' && feed.posts.length === 0 ? <SkeletonList count={3} /> : null}
 
-      {feed.status === 'error' ? (
-        <ErrorState title="No se pudieron cargar las publicaciones" message={feed.error} onRetry={feed.retry} />
-      ) : null}
+      {feed.status === 'error' ? <FeedError message={feed.error} onRetry={feed.retry} /> : null}
 
       {feed.status === 'ready' && feed.posts.length === 0 ? (
         <View style={styles.empty}>
@@ -100,6 +98,18 @@ export default function HomeScreen() {
         {user ? feed.posts.map((post) => <PostCard key={post.id} post={post} viewerUid={user.uid} />) : null}
       </View>
     </Screen>
+  );
+}
+
+function FeedError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  const { text, url } = splitIndexLink(message);
+  return (
+    <View style={styles.gap}>
+      <ErrorState title="No se pudieron cargar las publicaciones" message={text} onRetry={onRetry} />
+      {url ? (
+        <Button label="Crear índice" icon="open_in_new" onPress={() => Linking.openURL(url).catch(() => {})} testID="button-create-index" />
+      ) : null}
+    </View>
   );
 }
 
