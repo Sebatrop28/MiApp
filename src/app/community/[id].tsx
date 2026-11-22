@@ -16,6 +16,7 @@ import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useFriends } from '@/context/friends-context';
 import {
+  COMMUNITY_POSTS_PAGE,
   createCommunityPost,
   deleteCommunityPost,
   joinCommunity,
@@ -44,9 +45,10 @@ export default function CommunityScreen() {
   const [error, setError] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState<'join' | 'post' | null>(null);
+  const [max, setMax] = useState(COMMUNITY_POSTS_PAGE);
 
   useEffect(() => subscribeToCommunity(id, (value) => setCommunity({ id, value }), setError), [id]);
-  useEffect(() => subscribeToCommunityPosts(id, (value) => setPosts({ id, value }), setError), [id]);
+  useEffect(() => subscribeToCommunityPosts(id, max, (value) => setPosts({ id, value }), setError), [id, max]);
   useEffect(() => {
     if (!uid) return;
     return subscribeToMembership(id, uid, (value) => setMember({ id, value }), setError);
@@ -208,6 +210,15 @@ export default function CommunityScreen() {
             </Card>
           ))}
         </View>
+        {list && list.length >= max ? (
+          <Button
+            label="Ver publicaciones anteriores"
+            icon="expand_more"
+            variant="secondary"
+            onPress={() => setMax((m) => m + COMMUNITY_POSTS_PAGE)}
+            testID="button-more-community-posts"
+          />
+        ) : null}
       </Screen>
     </KeyboardAvoidingView>
   );

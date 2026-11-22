@@ -49,8 +49,10 @@ export const subscribeToCommunity = (id: string, callback: (c: Community | null)
 export const subscribeToMembership = (id: string, uid: string, callback: (member: boolean) => void) =>
   listen(() => callback(members.has(`${id}_${uid}`)));
 
-export const subscribeToCommunityPosts = (id: string, callback: (p: CommunityPost[]) => void) =>
-  listen(() => callback([...(posts.get(id) ?? [])].sort((a, b) => b.createdAt - a.createdAt)));
+export const COMMUNITY_POSTS_PAGE = 50;
+
+export const subscribeToCommunityPosts = (id: string, max: number, callback: (p: CommunityPost[]) => void) =>
+  listen(() => callback([...(posts.get(id) ?? [])].sort((a, b) => b.createdAt - a.createdAt).slice(0, max)));
 
 export const createCommunity = jest.fn(async (owner: UserProfile, input: { name: string; description: string }) => {
   counter += 1;
