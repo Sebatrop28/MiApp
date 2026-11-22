@@ -49,6 +49,7 @@ const CALL_TTL_MS = 60_000;
 /** Si en este tiempo no se conecta directo con el amigo, el mensaje se deja cifrado en Firebase. */
 const RELAY_DELAY_MS = 8_000;
 const UNREADABLE_TEXT = '[Mensaje cifrado que no se pudo leer: la cuenta cambió de teléfono]';
+const IMAGE_UNSUPPORTED_TEXT = '[Imagen recibida: en la web no se pueden guardar imágenes]';
 
 const ChatContext = createContext<ChatContextValue | null>(null);
 
@@ -230,6 +231,8 @@ export function ChatProvider({ userId, signaling: injected, relay: injectedRelay
           received = { ...base, text: UNREADABLE_TEXT, sentAt: Date.now() };
         } else if (payload.t === 'msg') {
           received = { ...base, text: payload.text, sentAt: payload.sentAt };
+        } else if (!imagesSupported) {
+          received = { ...base, text: IMAGE_UNSUPPORTED_TEXT, sentAt: payload.sentAt };
         } else {
           const uri = await saveReceivedImage(userId, message.from, message.msgId, payload.data);
           received = { ...base, text: '', sentAt: payload.sentAt, image: { uri, width: payload.width, height: payload.height } };
