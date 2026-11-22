@@ -168,7 +168,7 @@ service cloud.firestore {
         && (request.resource.data.link == null
           || (request.resource.data.link is string
             && request.resource.data.link.size() <= 500
-            && request.resource.data.link.matches('^[Hh][Tt][Tt][Pp][Ss]?://[^ ]+$')))
+            && request.resource.data.link.matches('^[Hh][Tt][Tt][Pp][Ss]?://[^ /?#]+[^ ]*$')))
         && (request.resource.data.image == null
           || (request.resource.data.image is map
             && request.resource.data.image.keys().hasOnly(['width', 'height'])

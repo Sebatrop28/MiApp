@@ -13,6 +13,7 @@ describe('publicaciones', () => {
     expect(validatePost({ text: 'hola', link: '', hasImage: false })).toBeNull();
     expect(validatePost({ text: '', link: 'ftp://x.com/a', hasImage: false })).toMatch(/enlace/);
     expect(validatePost({ text: '', link: 'mi archivo.pdf', hasImage: false })).toMatch(/enlace/);
+    expect(validatePost({ text: '', link: 'https:///', hasImage: false })).toMatch(/enlace/);
     expect(validatePost({ text: 'x'.repeat(POST_TEXT_MAX_LENGTH + 1), link: '', hasImage: false })).toMatch(/hasta/);
   });
 
