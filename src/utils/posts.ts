@@ -4,7 +4,8 @@ export const POST_LINK_MAX_LENGTH = 500;
 /** Foto en base64 (documento aparte en `postImages`; Firestore admite hasta 1 MiB por documento). */
 export const POST_IMAGE_MAX_LENGTH = 900_000;
 
-const LINK_PATTERN = /^https?:\/\/[^\s]+$/i;
+/** Debe tener dominio: `https:///` no es válido. */
+const LINK_PATTERN = /^https?:\/\/[^\s/?#]+[^\s]*$/i;
 
 /** Quita espacios y añade `https://` si falta. Devuelve `null` si está vacío. */
 export function normalizeLink(input: string): string | null {

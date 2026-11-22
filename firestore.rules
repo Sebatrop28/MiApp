@@ -150,10 +150,11 @@ service cloud.firestore {
 
     // Publicaciones visibles para todas las cuentas con sesión iniciada.
     function likeChange(before, after) {
+      let unique = after.size() == after.toSet().size();
       let added = after.toSet().difference(before.toSet());
       let removed = before.toSet().difference(after.toSet());
-      return (added == [me()].toSet() && removed.size() == 0)
-        || (removed == [me()].toSet() && added.size() == 0);
+      return unique && ((added == [me()].toSet() && removed.size() == 0)
+        || (removed == [me()].toSet() && added.size() == 0));
     }
 
     match /posts/{id} {
@@ -167,16 +168,20 @@ service cloud.firestore {
         && (request.resource.data.link == null
           || (request.resource.data.link is string
             && request.resource.data.link.size() <= 500
-            && request.resource.data.link.matches('^[Hh][Tt][Tt][Pp][Ss]?://[^ ]+$')))
+            && request.resource.data.link.matches('^[Hh][Tt][Tt][Pp][Ss]?://[^ /?#]+[^ ]*$')))
         && (request.resource.data.image == null
           || (request.resource.data.image is map
             && request.resource.data.image.keys().hasOnly(['width', 'height'])
             && request.resource.data.image.width is number
             && request.resource.data.image.height is number
+            && !exists(path('postImages', id))
             && existsAfter(path('postImages', id))))
         && (request.resource.data.text.size() > 0 || request.resource.data.link != null || request.resource.data.image != null)
         && request.resource.data.likes == []
-        && request.resource.data.createdAt is int;
+        // La fecha debe ser la actual (±5 min por la hora del teléfono): no se puede fijar en el futuro.
+        && request.resource.data.createdAt is int
+        && request.resource.data.createdAt > request.time.toMillis() - 300000
+        && request.resource.data.createdAt < request.time.toMillis() + 300000;
       // Cualquiera puede dar o quitar solo su propio «me gusta».
       allow update: if signedIn()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])
