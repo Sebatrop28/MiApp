@@ -50,6 +50,14 @@
           "cameraPermission": false,
           "microphonePermission": false
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "extraProguardRules": "-dontwarn org.webrtc.**\n-keep class org.webrtc.** { *; }"
+          }
+        }
       ]
     ],
     "experiments": {
