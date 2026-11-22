@@ -36,7 +36,6 @@ export default function AboutScreen() {
 
   return (
     <Screen
-      title="Información"
       subtitle="Detalles de la aplicación"
       refreshing={info.status === 'refreshing'}
       onRefresh={info.refresh}
