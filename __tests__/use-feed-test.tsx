@@ -27,7 +27,11 @@ describe('useFeed', () => {
       callback([post('vieja', now - POST_TTL_MS + 60_000), post('nueva', now)]);
       return () => {};
     });
-    const { result } = await renderHook(() => useFeed(['u9']));
+    let renders = 0;
+    const { result } = await renderHook(() => {
+      renders += 1;
+      return useFeed(['u9']);
+    });
     expect(result.current.posts.map((p) => p.id)).toEqual(['vieja', 'nueva']);
 
     await act(async () => {
@@ -35,5 +39,11 @@ describe('useFeed', () => {
     });
     expect(result.current.posts.map((p) => p.id)).toEqual(['nueva']);
     expect(mockSubscribe).toHaveBeenCalledTimes(1);
+
+    const before = renders;
+    await act(async () => {
+      jest.advanceTimersByTime(10_000);
+    });
+    expect(renders).toBe(before);
   });
 });

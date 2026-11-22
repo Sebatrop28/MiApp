@@ -40,8 +40,9 @@ export function useFeed(authorUids: readonly string[] | null, simulateError = fa
 
   // La consulta fija el corte de 24 h al suscribirse: aquí se ocultan las que caducan después.
   useEffect(() => {
-    if (!loaded?.length) return;
-    const next = Math.min(...loaded.map((p) => p.createdAt + POST_TTL_MS));
+    const upcoming = (loaded ?? []).map((p) => p.createdAt + POST_TTL_MS).filter((t) => t > now);
+    if (upcoming.length === 0) return;
+    const next = Math.min(...upcoming);
     const timer = setTimeout(() => setNow(Date.now()), Math.max(0, next - Date.now()) + 1000);
     return () => clearTimeout(timer);
   }, [loaded, now]);
