@@ -116,7 +116,7 @@ export default function SettingsScreen() {
               <ListRow
                 icon="bug_report"
                 title="Simular errores de red"
-                description="Fuerza fallos en la carga de Inicio para probar los mensajes de error."
+                description="Fuerza un fallo al cargar las publicaciones de Inicio para probar los mensajes de error."
                 trailing={
                   <Switch
                     value={settings.simulateNetworkErrors}
