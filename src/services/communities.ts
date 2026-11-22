@@ -91,7 +91,7 @@ export async function searchCommunities(text: string): Promise<Community[]> {
     query(
       collection(getFirebaseDb(), 'communities'),
       where('nameLower', '>=', key),
-      where('nameLower', '<=', `${key}\uf8ff`),
+      where('nameLower', '<=', `${key}\u{10ffff}`),
       orderBy('nameLower'),
       limit(20),
     ),
@@ -165,13 +165,16 @@ export async function leaveCommunity(communityId: string, uid: string): Promise<
   await batch.commit();
 }
 
+export const COMMUNITY_POSTS_PAGE = 50;
+
 export function subscribeToCommunityPosts(
   communityId: string,
+  max: number,
   callback: (posts: CommunityPost[]) => void,
   onError: (message: string) => void,
 ): Unsubscribe {
   return onSnapshot(
-    query(collection(getFirebaseDb(), 'communities', communityId, 'posts'), orderBy('createdAt', 'desc'), limit(100)),
+    query(collection(getFirebaseDb(), 'communities', communityId, 'posts'), orderBy('createdAt', 'desc'), limit(max)),
     (snap) => callback(snap.docs.map((d) => toCommunityPost(d.id, d.data()))),
     (e) => onError(toCommunitiesErrorMessage(e)),
   );
