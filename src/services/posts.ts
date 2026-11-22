@@ -48,6 +48,24 @@ export const FEED_LIMIT = 50;
 
 export const toPostsErrorMessage = toFriendsErrorMessage;
 
+const INDEX_URL = /https:\/\/console\.firebase\.google\.com\/\S+/;
+
+/** Error del muro con el detalle de Firebase; si falta un índice, incluye el enlace para crearlo. */
+export function toFeedError(error: unknown): string {
+  const code = (error as { code?: unknown } | null)?.code;
+  const detail = error instanceof Error ? error.message : '';
+  const url = detail.match(INDEX_URL)?.[0];
+  if (url) return `Falta un índice en Firestore. Pulsa «Crear índice», inicia sesión con tu cuenta de Firebase y pulsa Guardar. ${url}`;
+  const base = toPostsErrorMessage(error);
+  return typeof code === 'string' ? `${base} (${code}${detail ? `: ${detail}` : ''})` : base;
+}
+
+/** Separa el enlace de creación de índice (si lo hay) del texto del error. */
+export function splitIndexLink(message: string): { text: string; url: string | null } {
+  const url = message.match(INDEX_URL)?.[0] ?? null;
+  return { text: url ? message.replace(url, '').trim() : message, url };
+}
+
 function toPost(id: string, data: Record<string, unknown>): Post {
   const author = (data.author ?? {}) as Record<string, unknown>;
   const image = data.image as { width?: unknown; height?: unknown } | null | undefined;
@@ -93,7 +111,7 @@ export function subscribeToFeed(
         results.set(index, snap.docs.map((d) => toPost(d.id, d.data())));
         if (results.size === groups.length) callback(sortNewest([...results.values()].flat()));
       },
-      (e) => onError(toPostsErrorMessage(e)),
+      (e) => onError(toFeedError(e)),
     ),
   );
   return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
