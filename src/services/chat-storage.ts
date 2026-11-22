@@ -2,7 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /**
  * Historial del chat, guardado solo en este teléfono (por cuenta y por amigo).
- * `pending`: aún no llegó al otro teléfono; `delivered`: el otro teléfono confirmó que lo guardó.
+ * `pending`: sigue solo en este teléfono; `relayed`: espera cifrado en Firebase;
+ * `delivered`: el otro teléfono lo recibió.
  */
 export interface ChatMessage {
   id: string;
@@ -10,7 +11,7 @@ export interface ChatMessage {
   from: string;
   text: string;
   sentAt: number;
-  status: 'pending' | 'delivered';
+  status: 'pending' | 'relayed' | 'delivered';
   /** Imagen guardada en la carpeta privada del chat (solo en este teléfono). */
   image?: { uri: string; width: number; height: number };
 }
@@ -36,7 +37,7 @@ function isChatMessage(value: unknown): value is ChatMessage {
     typeof m.from === 'string' &&
     typeof m.text === 'string' &&
     typeof m.sentAt === 'number' &&
-    (m.status === 'pending' || m.status === 'delivered') &&
+    (m.status === 'pending' || m.status === 'relayed' || m.status === 'delivered') &&
     (m.image === undefined || isImage(m.image))
   );
 }
@@ -70,7 +71,7 @@ export function markDelivered(messages: ChatMessage[], ids: readonly string[], o
   const set = new Set(ids);
   let changed = false;
   const next = messages.map((m) => {
-    if (m.from === ownUid && m.status === 'pending' && set.has(m.id)) {
+    if (m.from === ownUid && m.status !== 'delivered' && set.has(m.id)) {
       changed = true;
       return { ...m, status: 'delivered' as const };
     }
@@ -81,4 +82,17 @@ export function markDelivered(messages: ChatMessage[], ids: readonly string[], o
 
 export function pendingMessages(messages: ChatMessage[], ownUid: string): ChatMessage[] {
   return messages.filter((m) => m.from === ownUid && m.status === 'pending');
+}
+
+export function markRelayed(messages: ChatMessage[], id: string, ownUid: string): ChatMessage[] {
+  const index = messages.findIndex((m) => m.id === id && m.from === ownUid && m.status === 'pending');
+  if (index < 0) return messages;
+  const next = [...messages];
+  next[index] = { ...next[index], status: 'relayed' };
+  return next;
+}
+
+/** Los mensajes en espera que ya no están en Firebase fueron recibidos (el destinatario los borra). */
+export function relayedNoLongerWaiting(messages: ChatMessage[], waiting: ReadonlySet<string>, ownUid: string): string[] {
+  return messages.filter((m) => m.from === ownUid && m.status === 'relayed' && !waiting.has(m.id)).map((m) => m.id);
 }

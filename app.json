@@ -2,7 +2,7 @@
   "expo": {
     "name": "MiApp",
     "slug": "miapp",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "miapp",
@@ -58,7 +58,8 @@
             "extraProguardRules": "-dontwarn org.webrtc.**\n-keep class org.webrtc.** { *; }"
           }
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,

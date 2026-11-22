@@ -102,7 +102,7 @@ La app usa **Firebase Authentication**. Necesitas un proyecto de Firebase propio
 
 ### Amigos: crear Firestore
 
-La pestaña **Amigos** guarda en Cloud Firestore solo el nombre de usuario, el nombre visible, las solicitudes y las amistades. Los mensajes del chat **no** se guardan en ningún servidor.
+La pestaña **Amigos** guarda en Cloud Firestore el nombre de usuario, el nombre visible, la llave pública del chat, las solicitudes y las amistades. Los mensajes del chat solo pasan por Firestore **cifrados de extremo a extremo**, mientras esperan a que el amigo los reciba (ver abajo).
 
 1. En la consola de Firebase abre **Bases de datos y almacenamiento → Firestore Database** y pulsa **Crear base de datos**.
 2. Elige **Edición Standard**, una ubicación cercana (por ejemplo `southamerica-east1`) y el **modo de producción**. Pulsa **Crear**.
@@ -116,14 +116,17 @@ No hace falta recompilar el APK: Firestore usa el mismo `firebaseConfig`. Si la 
 
 Toca un amigo en la pestaña **Amigos** para abrir el chat. Los mensajes viajan de teléfono a teléfono por WebRTC (canal cifrado con DTLS) y se guardan **solo** en los dos teléfonos.
 
-- **Los dos deben tener la app abierta.** Si tu amigo no está conectado, el mensaje queda en tu teléfono con un reloj ⏱ y se envía solo cuando los dos estén conectados. Con ✓✓ el otro teléfono ya lo guardó.
+- **Si los dos tienen la app abierta**, el mensaje va directo de teléfono a teléfono.
+- **Si tu amigo no está conectado** (pasan 8 s sin conexión directa), el mensaje se cifra en tu teléfono con la llave pública de tu amigo y se deja en la colección `relay` de Firestore. Cuando tu amigo abre la app, lo descarga, lo descifra y lo borra de Firestore. Estados: ⏱ solo en tu teléfono, ✓ esperando cifrado en Firebase, ✓✓ recibido.
+- **Cifrado:** NaCl `box` (X25519 + XSalsa20-Poly1305, librería `tweetnacl`). Cada cuenta genera su llave privada en el teléfono y la guarda con `expo-secure-store` (Android Keystore); solo la llave pública se publica en `profiles/{uid}.publicKey`. Firebase no puede leer los mensajes.
+- **Limitación:** la llave es por teléfono. Si una cuenta entra en otro teléfono o reinstala la app, se crea una llave nueva y los mensajes que estaban esperando con la llave anterior se muestran como «no se pudo leer».
 - **Firestore solo se usa para «presentar» a los dos teléfonos** (colección `calls`: la oferta y la respuesta WebRTC). Ese documento se borra en cuanto conectan y nunca contiene mensajes.
 - **Redes que bloquean P2P:** algunas redes móviles o corporativas no permiten la conexión directa. En ese caso hace falta un servidor TURN, que reenvía los datos cifrados sin guardarlos. Se configura en `app.json → extra.webrtc.iceServers` sin cambiar código:
   ```json
   "webrtc": { "iceServers": [{ "urls": "turn:tu-servidor:3478", "username": "usuario", "credential": "clave" }] }
   ```
-- **Imágenes:** el botón de imagen elige una foto de la galería. Se reduce a 1280 px, se comprime en JPEG y viaja en trozos por la misma conexión directa. Se guarda en la carpeta privada de la app (`Documents/chat/…`) en los dos teléfonos y no se sube a ningún servidor. Desde la web no se pueden enviar imágenes.
-- WebRTC es código nativo: **no funciona en Expo Go**. Hace falta el APK (`npm run build:apk`). Cada vez que se agregan módulos nativos sube la versión de la app (chat: `1.1.0`, imágenes: `1.2.0`), y las actualizaciones OTA nuevas solo llegan a los APK compilados con esa versión.
+- **Imágenes:** el botón de imagen elige una foto de la galería. Se reduce a 1280 px, se comprime en JPEG y viaja en trozos por la misma conexión directa. Se guarda en la carpeta privada de la app (`Documents/chat/…`) en los dos teléfonos. Si el amigo no está conectado, la imagen viaja cifrada por el buzón de Firestore (en partes de hasta 900 KB) y se borra al recibirla. Desde la web no se pueden enviar imágenes.
+- WebRTC es código nativo: **no funciona en Expo Go**. Hace falta el APK (`npm run build:apk`). Cada vez que se agregan módulos nativos sube la versión de la app (chat: `1.1.0`, imágenes: `1.2.0`, mensajes cifrados en espera: `1.3.0`), y las actualizaciones OTA nuevas solo llegan a los APK compilados con esa versión.
 
 ---
 
