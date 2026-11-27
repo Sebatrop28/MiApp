@@ -1,8 +1,8 @@
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useHeaderHeight } from 'expo-router/react-navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -13,6 +13,7 @@ import { MaxContentWidth, Radius, Spacing, Typography } from '@/constants/theme'
 import { useAuth } from '@/context/auth-context';
 import { useChat, type ConnectionState } from '@/context/chat-context';
 import { useFriends } from '@/context/friends-context';
+import { useNotifications } from '@/context/notifications-context';
 import { useAppTheme } from '@/hooks/use-theme';
 import { MAX_MESSAGE_LENGTH } from '@/services/chat-protocol';
 import type { ChatMessage } from '@/services/chat-storage';
@@ -76,6 +77,15 @@ function Conversation({ friend }: { friend: Friend }) {
   useEffect(() => {
     openConversation(uid);
   }, [openConversation, uid]);
+
+  // Mientras este chat está en pantalla, sus mensajes no generan notificaciones.
+  const { setActiveChat } = useNotifications();
+  useFocusEffect(
+    useCallback(() => {
+      setActiveChat(uid);
+      return () => setActiveChat(null);
+    }, [setActiveChat, uid]),
+  );
 
   useEffect(() => {
     if (!supported || connection === 'open') return;

@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Switch } from 'react-native';
+import { Alert, Linking, Switch } from 'react-native';
 
 import { Banner } from '@/components/feedback/banner';
 import { LoadingState } from '@/components/feedback/loading-state';
@@ -11,6 +11,7 @@ import { Screen } from '@/components/ui/screen';
 import { SegmentedControl, type SegmentedOption } from '@/components/ui/segmented-control';
 import { Section } from '@/components/ui/section';
 import { useAuth } from '@/context/auth-context';
+import { useNotifications } from '@/context/notifications-context';
 import { useSettings } from '@/context/settings-context';
 import { useAppTheme } from '@/hooks/use-theme';
 import { toAuthErrorMessage } from '@/services/auth-errors';
@@ -28,6 +29,21 @@ export default function SettingsScreen() {
   const { settings, status, error, updateSetting, resetSettings, dismissError } = useSettings();
   const { user, signOut } = useAuth();
   const [signOutError, setSignOutError] = useState<string | null>(null);
+  const notifications = useNotifications();
+  const notificationsOn = notifications.supported && settings.notificationsEnabled && notifications.permission === 'granted';
+
+  const toggleNotifications = async (value: boolean) => {
+    if (!value) return notifications.disable();
+    if (await notifications.enable()) return;
+    Alert.alert(
+      'Permiso necesario',
+      'Para recibir avisos, permite las notificaciones de MiApp en los ajustes del teléfono.',
+      [
+        { text: 'Ahora no', style: 'cancel' },
+        { text: 'Abrir ajustes', onPress: () => void Linking.openSettings() },
+      ],
+    );
+  };
 
   const switchColors = {
     trackColor: { false: colors.border, true: colors.primary },
@@ -49,7 +65,11 @@ export default function SettingsScreen() {
         style: 'destructive',
         onPress: () => {
           setSignOutError(null);
-          signOut().catch((e: unknown) => setSignOutError(toAuthErrorMessage(e)));
+          // Se borra el token antes de salir, para que este teléfono deje de recibir avisos de la cuenta.
+          notifications
+            .unregister()
+            .then(signOut)
+            .catch((e: unknown) => setSignOutError(toAuthErrorMessage(e)));
         },
       },
     ]);
@@ -98,11 +118,16 @@ export default function SettingsScreen() {
                 icon="notifications"
                 tone="accent"
                 title="Notificaciones"
-                description="Recibir avisos de novedades (preferencia guardada localmente)."
+                description={
+                  notifications.supported
+                    ? 'Mensajes nuevos, solicitudes de amistad y solicitudes aceptadas.'
+                    : 'Disponibles en la app de Android.'
+                }
                 trailing={
                   <Switch
-                    value={settings.notificationsEnabled}
-                    onValueChange={(value) => void updateSetting('notificationsEnabled', value)}
+                    value={notificationsOn}
+                    disabled={!notifications.supported}
+                    onValueChange={(value) => void toggleNotifications(value)}
                     accessibilityLabel="Notificaciones"
                     testID="switch-notifications"
                     {...switchColors}

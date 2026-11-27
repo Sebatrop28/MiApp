@@ -3,6 +3,7 @@ import { AppState } from 'react-native';
 
 import { iceServers } from '@/config/firebase-config';
 import { useFriends } from '@/context/friends-context';
+import { useNotifications, type NotifySource } from '@/context/notifications-context';
 import { decodeWire, encodeWire, ImageAssembler, MAX_MESSAGE_LENGTH, splitChunks } from '@/services/chat-protocol';
 import { imagesSupported, prepareImage, readImageBase64, saveReceivedImage } from '@/services/chat-media';
 import { decodeRelayPayload, getOrCreateKeyPair, open, seal, type ChatKeyPair } from '@/services/chat-crypto';
@@ -62,6 +63,7 @@ export interface ChatProviderProps extends PropsWithChildren {
 
 export function ChatProvider({ userId, signaling: injected, relay: injectedRelay, children }: ChatProviderProps) {
   const { friends, profile } = useFriends();
+  const { notifyLocal, sendPush } = useNotifications();
   const PeerConnection = useMemo(() => getPeerConnectionConstructor(), []);
   const signaling = useMemo(() => injected ?? createFirestoreSignaling(getFirebaseDb()), [injected]);
   const relay = useMemo(() => injectedRelay ?? createFirestoreRelay(getFirebaseDb()), [injectedRelay]);
@@ -81,9 +83,29 @@ export function ChatProvider({ userId, signaling: injected, relay: injectedRelay
   const answered = useRef(new Set<string>());
   const friendUids = useMemo(() => new Set(friends.map((f) => f.profile.uid)), [friends]);
   const friendUidsRef = useRef(friendUids);
+  const friendNames = useRef(new Map<string, string>());
   useEffect(() => {
     friendUidsRef.current = friendUids;
-  }, [friendUids]);
+    friendNames.current = new Map(friends.map((f) => [f.profile.uid, f.profile.displayName || `@${f.profile.username}`]));
+  }, [friendUids, friends]);
+
+  const notifyReceived = useCallback(
+    (from: string, m: ChatMessage, source: NotifySource) => {
+      const text = m.text.length > 120 ? `${m.text.slice(0, 119)}…` : m.text;
+      notifyLocal(
+        {
+          kind: 'message',
+          title: friendNames.current.get(from) ?? 'Mensaje nuevo',
+          body: m.image ? 'Te envió una foto' : text,
+          url: `/chat/${from}`,
+          tag: `chat-${from}`,
+        },
+        source,
+        m.id,
+      );
+    },
+    [notifyLocal],
+  );
 
   const setConnection = useCallback((uid: string, state: ConnectionState) => {
     setConnections((prev) => (prev[uid] === state ? prev : { ...prev, [uid]: state }));
@@ -190,6 +212,7 @@ export function ChatProvider({ userId, signaling: injected, relay: injectedRelay
       // Sin llave pública el amigo aún no tiene esta versión: se queda pendiente para P2P.
       const theirKey = await relay.getPublicKey(uid).catch(() => null);
       if (!theirKey) return;
+      let relayed = false;
       for (const m of pending) {
         relaying.current.add(m.id);
         try {
@@ -198,14 +221,25 @@ export function ChatProvider({ userId, signaling: injected, relay: injectedRelay
             : { t: 'msg', sentAt: m.sentAt, text: m.text };
           await relay.publish(userId, uid, m.id, seal(JSON.stringify(payload), theirKey, mine));
           await update(uid, (messages) => markRelayed(messages, m.id, userId));
+          relayed = true;
         } catch {
           setError('No se pudo dejar el mensaje en espera. Se reintentará al abrir la app.');
         } finally {
           relaying.current.delete(m.id);
         }
       }
+      // El contenido va cifrado: la push solo dice quién escribió.
+      if (relayed && profile) {
+        sendPush(uid, {
+          kind: 'message',
+          title: profile.displayName || `@${profile.username}`,
+          body: pending.length > 1 ? `Te envió ${pending.length} mensajes` : 'Te envió un mensaje',
+          url: `/chat/${userId}`,
+          tag: `chat-${userId}`,
+        });
+      }
     },
-    [ensureLoaded, relay, update, userId],
+    [ensureLoaded, relay, update, userId, profile, sendPush],
   );
 
   const scheduleRelay = useCallback(
@@ -247,13 +281,14 @@ export function ChatProvider({ userId, signaling: injected, relay: injectedRelay
         }
         // Si no se guardó en el teléfono, se deja en Firebase para reintentar.
         if (!(await update(message.from, (messages) => addReceived(messages, received)))) throw new Error('save');
+        notifyReceived(message.from, received, 'remote');
         await relay.remove(message.ids);
       } catch {
         // Se reintenta con la próxima actualización del buzón.
         receivingRelayed.current.delete(key);
       }
     },
-    [relay, update, userId],
+    [relay, update, userId, notifyReceived],
   );
 
   const createSession = useCallback(
@@ -262,9 +297,10 @@ export function ChatProvider({ userId, signaling: injected, relay: injectedRelay
       const assembler = new ImageAssembler();
       // Se confirma después de guardar, para no perder mensajes si la app se cierra.
       const receive = (received: ChatMessage) =>
-        void update(uid, (messages) => addReceived(messages, received)).then(() =>
-          session.send(encodeWire({ t: 'ack', ids: [received.id] })),
-        );
+        void update(uid, (messages) => addReceived(messages, received)).then(() => {
+          notifyReceived(uid, received, 'direct');
+          session.send(encodeWire({ t: 'ack', ids: [received.id] }));
+        });
       const session: PeerSession = new PeerSession(
         { PeerConnection, iceServers, signaling },
         {
@@ -313,7 +349,7 @@ export function ChatProvider({ userId, signaling: injected, relay: injectedRelay
       setConnection(uid, 'connecting');
       return session;
     },
-    [PeerConnection, signaling, flush, update, userId, setConnection],
+    [PeerConnection, signaling, flush, update, userId, setConnection, notifyReceived],
   );
 
   const connect = useCallback(

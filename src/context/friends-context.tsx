@@ -1,8 +1,12 @@
-import { createContext, use, useCallback, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
+import { createContext, use, useCallback, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
+
+import { useNotifications } from '@/context/notifications-context';
 
 import * as friends from '@/services/friends';
 import type { Friend, FriendRequest, UserProfile } from '@/services/friends';
 import { normalizeUsername } from '@/utils/username';
+
+const nameOf = (p: UserProfile) => p.displayName || `@${p.username}`;
 
 export type FriendsStatus = 'loading' | 'ready';
 
@@ -41,6 +45,7 @@ export function FriendsProvider({ userId, displayName, children }: FriendsProvid
   const [outgoing, setOutgoing] = useState<FriendRequest[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const { notifyLocal, sendPush } = useNotifications();
 
   useEffect(() => {
     const onError = (message: string) => {
@@ -68,6 +73,44 @@ export function FriendsProvider({ userId, displayName, children }: FriendsProvid
     ];
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
   }, [userId, hasProfile, attempt]);
+
+  // Avisa de las solicitudes nuevas (no de las que ya estaban al abrir la app).
+  const knownIncoming = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!hasProfile) return;
+    const known = knownIncoming.current;
+    knownIncoming.current = new Set(incoming.map((r) => r.id));
+    if (!known) return;
+    for (const r of incoming) {
+      if (known.has(r.id)) continue;
+      notifyLocal(
+        { kind: 'friend', title: 'Nueva solicitud de amistad', body: `${nameOf(r.from)} quiere ser tu amigo`, url: '/friends', tag: `friend-${r.from.uid}` },
+        'direct',
+        `${r.id}:${r.createdAt}`,
+      );
+    }
+  }, [incoming, hasProfile, notifyLocal]);
+
+  const notifyAccepted = useCallback(
+    (to: string) => {
+      if (!profile) return;
+      sendPush(to, {
+        kind: 'friend',
+        title: 'Solicitud aceptada',
+        body: `${nameOf(profile)} aceptó tu solicitud. ¡Ya pueden chatear!`,
+        url: `/chat/${profile.uid}`,
+      });
+    },
+    [profile, sendPush],
+  );
+
+  const acceptRequest = useCallback(
+    async (request: FriendRequest) => {
+      await friends.acceptFriendRequest(request);
+      notifyAccepted(request.from.uid);
+    },
+    [notifyAccepted],
+  );
 
   const retry = useCallback(() => {
     setError(null);
@@ -97,13 +140,13 @@ export function FriendsProvider({ userId, displayName, children }: FriendsProvid
       }
       const pending = incoming.find((r) => r.from.uid === to.uid);
       if (pending) {
-        await friends.acceptFriendRequest(pending);
+        await acceptRequest(pending);
         return 'accepted';
       }
       await friends.sendFriendRequest(profile, to);
       return 'sent';
     },
-    [profile, friendList, incoming, outgoing],
+    [profile, friendList, incoming, outgoing, acceptRequest],
   );
 
   const value = useMemo<FriendsContextValue>(
@@ -117,12 +160,12 @@ export function FriendsProvider({ userId, displayName, children }: FriendsProvid
       createProfile,
       findUser,
       sendRequest,
-      acceptRequest: friends.acceptFriendRequest,
+      acceptRequest,
       deleteRequest: friends.deleteFriendRequest,
       removeFriend: friends.removeFriend,
       retry,
     }),
-    [profileLoaded, error, profile, friendList, incoming, outgoing, createProfile, findUser, sendRequest, retry],
+    [profileLoaded, error, profile, friendList, incoming, outgoing, createProfile, findUser, sendRequest, acceptRequest, retry],
   );
 
   return <FriendsContext value={value}>{children}</FriendsContext>;
