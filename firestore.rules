@@ -157,6 +157,20 @@ service cloud.firestore {
       allow delete: if signedIn() && (resource.data.from == me() || resource.data.to == me());
     }
 
+    // Token de Expo Push de cada cuenta: lo leen sus amigos y quien le acaba de enviar
+    // una solicitud, para avisarle con la app cerrada. Se borra al desactivar los avisos.
+    match /pushTokens/{uid} {
+      allow read: if signedIn() && (uid == me()
+        || areFriends(uid, me())
+        || exists(path('friendRequests', me() + '_' + uid)));
+      allow create, update: if signedIn() && uid == me()
+        && request.resource.data.keys().hasOnly(['token', 'updatedAt'])
+        && request.resource.data.token is string
+        && request.resource.data.token.matches('^Expo(nent)?PushToken\\[[A-Za-z0-9_-]{1,100}\\]$')
+        && request.resource.data.updatedAt is int;
+      allow delete: if signedIn() && uid == me();
+    }
+
     match /avatars/{uid} {
       allow read: if signedIn();
       allow create, update: if signedIn() && uid == me()

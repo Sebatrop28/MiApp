@@ -11,6 +11,7 @@ import { AuthProvider, useAuth } from '@/context/auth-context';
 import { ChatProvider } from '@/context/chat-context';
 import { FriendsProvider } from '@/context/friends-context';
 import { NotesProvider } from '@/context/notes-context';
+import { NotificationsProvider } from '@/context/notifications-context';
 import { SettingsProvider, useSettings } from '@/context/settings-context';
 import { useAppTheme } from '@/hooks/use-theme';
 
@@ -181,14 +182,16 @@ function RootNavigator() {
     </ThemeProvider>
   );
 
-  // Notas, amigos y chats son por cuenta; `key` reinicia los proveedores al cambiar de usuario.
+  // Notas, avisos, amigos y chats son por cuenta; `key` reinicia los proveedores al cambiar de usuario.
   return user ? (
     <NotesProvider key={user.uid} userId={user.uid}>
-      <FriendsProvider key={user.uid} userId={user.uid} displayName={user.displayName}>
-        <ChatProvider key={user.uid} userId={user.uid}>
-          {navigator}
-        </ChatProvider>
-      </FriendsProvider>
+      <NotificationsProvider key={user.uid} userId={user.uid}>
+        <FriendsProvider key={user.uid} userId={user.uid} displayName={user.displayName}>
+          <ChatProvider key={user.uid} userId={user.uid}>
+            {navigator}
+          </ChatProvider>
+        </FriendsProvider>
+      </NotificationsProvider>
     </NotesProvider>
   ) : (
     navigator
