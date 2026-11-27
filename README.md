@@ -12,6 +12,7 @@ Base profesional de una aplicación Android construida con **React Native + Expo
 4. [Configurar Firebase (cuentas de usuario)](#configurar-firebase-cuentas-de-usuario)
    - [Amigos: crear Firestore](#amigos-crear-firestore)
    - [Chat directo entre teléfonos (P2P)](#chat-directo-entre-teléfonos-p2p)
+   - [Notificaciones](#notificaciones)
 5. [Ejecutar en desarrollo](#ejecutar-en-desarrollo)
 6. [Comprobaciones de calidad](#comprobaciones-de-calidad)
 7. [Generar el APK con EAS Build](#generar-el-apk-con-eas-build)
@@ -34,7 +35,7 @@ Base profesional de una aplicación Android construida con **React Native + Expo
 | Inicio | Muro con tus publicaciones y las de la gente que **sigues**: texto (hasta 1000 caracteres), una foto y un enlace a un archivo o página (por ejemplo, de Google Drive). Cada publicación dura **24 horas** y muestra cuánto le queda. Se puede dar «me gusta» y borrar las propias. Hace falta tener nombre de usuario (pestaña Amigos) para publicar. |
 | Perfiles | Foto de perfil, nombre visible y descripción (hasta 160 caracteres) editables. Cada perfil muestra seguidores, seguidos, sus publicaciones activas y el botón **Seguir** (sin aceptación; aparte de Amigos, que sirve para el chat). Búsqueda de personas por @usuario. |
 | Notas | Bloc de notas: crea, edita y elimina notas. Todo lo que escribes se guarda automáticamente en el dispositivo (AsyncStorage), aunque cierres la app. Cada cuenta tiene sus propias notas en ese dispositivo. La primera línea se usa como título; las notas vacías se descartan al salir. |
-| Ajustes | Tema (Sistema / Claro / Oscuro), notificaciones y modo de prueba de errores. Se guardan en el dispositivo con AsyncStorage. |
+| Ajustes | Tema (Sistema / Claro / Oscuro), notificaciones (mensajes y solicitudes de amistad) y modo de prueba de errores. Se guardan en el dispositivo con AsyncStorage. |
 | Estados | Esqueletos de carga, indicadores, «deslizar para actualizar», mensajes de error con botón **Reintentar**, avisos no bloqueantes y `ErrorBoundary` global. |
 | Comunidades | Espacios públicos que crea cualquier persona con nombre y descripción. Se buscan por nombre y cualquiera se **une** o **sale** con un botón. Solo los miembros publican, y **solo texto** (hasta 1000 caracteres). Cada autor borra lo suyo y quien creó la comunidad puede borrar cualquier publicación. No caducan. |
 | Información | *Ajustes → Información de la app*: versión, compilación, identificador, fecha de instalación, datos del dispositivo y tecnologías (`expo-application`, `expo-device`, `expo-constants`). |
@@ -151,7 +152,22 @@ Toca un amigo en la pestaña **Amigos** para abrir el chat. Los mensajes viajan 
   "webrtc": { "iceServers": [{ "urls": "turn:tu-servidor:3478", "username": "usuario", "credential": "clave" }] }
   ```
 - **Imágenes:** el botón de imagen elige una foto de la galería. Se reduce a 1280 px, se comprime en JPEG y viaja en trozos por la misma conexión directa. Se guarda en la carpeta privada de la app (`Documents/chat/…`) en los dos teléfonos. Si el amigo no está conectado, la imagen viaja cifrada por el buzón de Firestore (en partes de hasta 900 KB) y se borra al recibirla. Desde la web no se pueden enviar imágenes.
-- WebRTC es código nativo: **no funciona en Expo Go**. Hace falta el APK (`npm run build:apk`). Cada vez que se agregan módulos nativos sube la versión de la app (chat: `1.1.0`, imágenes: `1.2.0`, mensajes cifrados en espera: `1.3.0`), y las actualizaciones OTA nuevas solo llegan a los APK compilados con esa versión.
+- WebRTC es código nativo: **no funciona en Expo Go**. Hace falta el APK (`npm run build:apk`). Cada vez que se agregan módulos nativos sube la versión de la app (chat: `1.1.0`, imágenes: `1.2.0`, mensajes cifrados en espera: `1.3.0`, notificaciones: `1.4.0`), y las actualizaciones OTA nuevas solo llegan a los APK compilados con esa versión.
+
+### Notificaciones
+
+Avisos de **mensajes nuevos**, **solicitudes de amistad** y **solicitudes aceptadas** con `expo-notifications`. Al tocar uno se abre el chat o la pestaña Amigos. Se activan en **Ajustes → Notificaciones**: la primera vez Android pide permiso; si se negó, el interruptor ofrece abrir los ajustes del teléfono. En Android hay dos canales (`Mensajes` y `Amigos`) que el usuario puede silenciar por separado. En la web no hay notificaciones.
+
+- **Con la app abierta o en segundo plano** se muestran como notificaciones locales. No se avisa del chat que tienes en pantalla.
+- **Con la app cerrada** llegan por push (servicio Expo Push → Firebase Cloud Messaging). Al activar el interruptor, el teléfono guarda su token en `pushTokens/{uid}`; el que envía un mensaje en espera o una solicitud manda la push directamente desde su teléfono. Solo pueden leer el token tus amigos y quien te acaba de enviar una solicitud. El texto de los mensajes **no** viaja en la push (siguen cifrados): solo «Ana te envió un mensaje». Al desactivar el interruptor o cerrar sesión, el token se borra.
+- Requiere el APK `1.4.0` o superior (módulo nativo nuevo) y publicar las reglas de `firestore.rules` (colección `pushTokens`).
+
+**Configuración única para las push con la app cerrada** (sin esto, el resto funciona igual pero sin avisos con la app cerrada):
+
+1. En la [consola de Firebase](https://console.firebase.google.com/) → proyecto `app-de-particion` → ⚙ **Configuración del proyecto** → **General** → **Agregar app** → Android, con el paquete `com.sebatrop28.miapp`. Descarga `google-services.json`, ponlo en la raíz del proyecto y añade `"googleServicesFile": "./google-services.json"` dentro de `expo.android` en `app.json`. Este archivo puede subirse al repositorio (no es secreto: solo identifica el proyecto).
+2. En Firebase → **Configuración del proyecto** → **Cuentas de servicio** → **Generar nueva clave privada**. Ese JSON **sí es secreto: no lo subas a Git**.
+3. Súbelo a EAS: `npx eas-cli@latest credentials` → Android → `production`/`preview` → **Google Service Account** → **Manage your Google Service Account Key for Push Notifications (FCM V1)** → sube el JSON. ([Guía de Expo](https://docs.expo.dev/push-notifications/fcm-credentials/))
+4. Compila un APK nuevo (`npm run build:apk`, o fusiona en `main` y el flujo lo hace solo) e instálalo.
 
 ---
 
@@ -320,9 +336,9 @@ MiApp/
 │   │   └── feedback/          # LoadingState, SkeletonList, ErrorState, Banner
 │   ├── config/                # Lectura de la configuración de Firebase (app.json → extra)
 │   ├── constants/theme.ts     # Tokens de diseño (colores, espaciado, tipografía)
-│   ├── context/               # Proveedores: ajustes, sesión, notas, amigos y chat
+│   ├── context/               # Proveedores: ajustes, sesión, notas, notificaciones, amigos y chat
 │   ├── hooks/                 # useAppTheme, useAsync, useFeed, useFollowing, useAutoUpdate
-│   ├── services/              # Acceso a datos: Firebase (Auth, Firestore), Google, chat P2P, publicaciones, comunidades, almacenamiento
+│   ├── services/              # Acceso a datos: Firebase (Auth, Firestore), Google, chat P2P, notificaciones y push, publicaciones, comunidades, almacenamiento
 │   └── utils/                 # Funciones puras (errores, saludo, fechas...)
 ├── app.json                   # Configuración de Expo (nombre, paquete Android, iconos)
 ├── eas.json                   # Perfiles de EAS Build / Submit
