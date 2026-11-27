@@ -54,6 +54,8 @@ export function NotificationsProvider({ userId, children }: NotificationsProvide
   const [permission, setPermission] = useState<NotificationPermission>('undetermined');
   /** Token de este teléfono guardado en Firestore: los demás pueden avisarle con push. */
   const registeredToken = useRef<string | null>(null);
+  /** Se está cerrando sesión: ya no se vuelve a guardar el token. */
+  const signingOut = useRef(false);
   const activeChat = useRef<string | null>(null);
   const shown = useRef(new Set<string>());
   // En refs para que `notifyLocal` sea estable: las sesiones de chat abiertas guardan el callback.
@@ -87,9 +89,11 @@ export function NotificationsProvider({ userId, children }: NotificationsProvide
       setPermission(current);
       if (enabled && current === 'granted') {
         const token = await notifications.getExpoPushToken();
-        if (cancelled || !token) return;
+        if (cancelled || !token || signingOut.current) return;
         await push.savePushToken(userId, token);
-        registeredToken.current = token;
+        // Si se cerró sesión mientras se guardaba, se deshace para no dejar avisos de esta cuenta.
+        if (signingOut.current) await push.removePushToken(userId, token);
+        else registeredToken.current = token;
       } else {
         // Sin conexión puede no obtenerse el token: se usa el que se registró en esta sesión.
         const token = registeredToken.current ?? (current === 'granted' ? await notifications.getExpoPushToken() : null);
@@ -137,6 +141,7 @@ export function NotificationsProvider({ userId, children }: NotificationsProvide
   }, []);
 
   const unregister = useCallback(async () => {
+    signingOut.current = true;
     const token = registeredToken.current;
     if (!token) return;
     registeredToken.current = null;
