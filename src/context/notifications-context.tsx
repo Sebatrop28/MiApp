@@ -56,6 +56,11 @@ export function NotificationsProvider({ userId, children }: NotificationsProvide
   const registeredToken = useRef<string | null>(null);
   const activeChat = useRef<string | null>(null);
   const shown = useRef(new Set<string>());
+  // En refs para que `notifyLocal` sea estable: las sesiones de chat abiertas guardan el callback.
+  const allowed = useRef(false);
+  useEffect(() => {
+    allowed.current = enabled && permission === 'granted';
+  }, [enabled, permission]);
 
   useEffect(() => {
     // Con la app abierta solo se muestran los avisos locales (las push llegan por duplicado).
@@ -98,7 +103,7 @@ export function NotificationsProvider({ userId, children }: NotificationsProvide
 
   const notifyLocal = useCallback<NotificationsContextValue['notifyLocal']>(
     (notification, source, eventId) => {
-      if (!enabled || permission !== 'granted') return;
+      if (!allowed.current) return;
       const key = `${notification.kind}:${eventId}`;
       if (shown.current.has(key)) return;
       const active = AppState.currentState === 'active';
@@ -108,7 +113,7 @@ export function NotificationsProvider({ userId, children }: NotificationsProvide
       shown.current.add(key);
       void notifications.presentLocal(notification).catch(() => shown.current.delete(key));
     },
-    [enabled, permission],
+    [],
   );
 
   const sendPush = useCallback((toUid: string, notification: AppNotification) => {
