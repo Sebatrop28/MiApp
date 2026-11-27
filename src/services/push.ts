@@ -20,8 +20,11 @@ export async function savePushToken(uid: string, token: string): Promise<void> {
   await setDoc(doc(getFirebaseDb(), 'pushTokens', uid), { token, updatedAt: Date.now() });
 }
 
-export async function removePushToken(uid: string): Promise<void> {
-  await deleteDoc(doc(getFirebaseDb(), 'pushTokens', uid));
+/** Borra el token solo si es el de este teléfono (otro teléfono de la misma cuenta pudo reemplazarlo). */
+export async function removePushToken(uid: string, token: string): Promise<void> {
+  const ref = doc(getFirebaseDb(), 'pushTokens', uid);
+  const snapshot = await getDoc(ref);
+  if (snapshot.exists() && snapshot.data().token === token) await deleteDoc(ref);
 }
 
 export async function getPushToken(uid: string): Promise<string | null> {

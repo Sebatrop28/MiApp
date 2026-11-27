@@ -27,6 +27,8 @@ export interface NotificationsContextValue {
 }
 
 const noop = () => {};
+/** Sin conexión Firestore no confirma el borrado: no se espera más que esto para cerrar sesión. */
+const UNREGISTER_TIMEOUT_MS = 3000;
 const NOOP_VALUE: NotificationsContextValue = {
   supported: false,
   permission: 'denied',
@@ -49,8 +51,8 @@ export function NotificationsProvider({ userId, children }: NotificationsProvide
   const { settings, status, updateSetting } = useSettings();
   const enabled = settings.notificationsEnabled && notifications.notificationsSupported;
   const [permission, setPermission] = useState<NotificationPermission>('undetermined');
-  /** Hay token guardado: los demás pueden avisar a este teléfono con push. */
-  const pushReady = useRef(false);
+  /** Token de este teléfono guardado en Firestore: los demás pueden avisarle con push. */
+  const registeredToken = useRef<string | null>(null);
   const activeChat = useRef<string | null>(null);
   const shown = useRef(new Set<string>());
 
@@ -68,18 +70,16 @@ export function NotificationsProvider({ userId, children }: NotificationsProvide
       if (enabled && current === 'undetermined') current = await notifications.requestPermission();
       if (cancelled) return;
       setPermission(current);
-      if (enabled && current === 'granted') {
-        const token = await notifications.getExpoPushToken();
-        if (cancelled || !token) return;
+      const token = current === 'granted' ? await notifications.getExpoPushToken() : null;
+      if (cancelled || !token) return;
+      if (enabled) {
         await push.savePushToken(userId, token);
-        pushReady.current = true;
+        registeredToken.current = token;
       } else {
-        pushReady.current = false;
-        if (!enabled) await push.removePushToken(userId);
+        registeredToken.current = null;
+        await push.removePushToken(userId, token);
       }
-    })().catch(() => {
-      pushReady.current = false;
-    });
+    })().catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -103,7 +103,7 @@ export function NotificationsProvider({ userId, children }: NotificationsProvide
       const active = AppState.currentState === 'active';
       if (active && notification.kind === 'message' && notification.url === `/chat/${activeChat.current}`) return;
       // En segundo plano, lo que envía otra cuenta ya llega por push.
-      if (!active && source === 'remote' && pushReady.current) return;
+      if (!active && source === 'remote' && registeredToken.current) return;
       shown.current.add(key);
       void notifications.presentLocal(notification).catch(() => shown.current.delete(key));
     },
@@ -119,8 +119,11 @@ export function NotificationsProvider({ userId, children }: NotificationsProvide
   }, []);
 
   const unregister = useCallback(async () => {
-    pushReady.current = false;
-    await push.removePushToken(userId).catch(() => {});
+    const token = registeredToken.current;
+    if (!token) return;
+    registeredToken.current = null;
+    const timeout = new Promise<void>((resolve) => setTimeout(resolve, UNREGISTER_TIMEOUT_MS));
+    await Promise.race([push.removePushToken(userId, token).catch(() => {}), timeout]);
   }, [userId]);
 
   const value = useMemo<NotificationsContextValue>(
