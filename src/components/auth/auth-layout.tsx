@@ -15,15 +15,15 @@ export interface AuthLayoutProps extends PropsWithChildren {
 
 /** Contenedor común de las pantallas de inicio de sesión y registro. */
 export function AuthLayout({ title, subtitle, testID, children }: AuthLayoutProps) {
-  const { colors } = useAppTheme();
+  const { colors, gradient } = useAppTheme();
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]} testID={testID}>
       <KeyboardAvoidingView style={styles.flex} behavior="padding">
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.content}>
             <View style={styles.header}>
-              <View style={[styles.logo, { backgroundColor: colors.primaryMuted }]}>
-                <Icon name="lock" size={32} color="primary" />
+              <View style={[styles.logo, { backgroundImage: gradient, boxShadow: `0px 10px 24px ${colors.primary}55` }]}>
+                <Icon name="forum" size={34} color="onPrimary" />
               </View>
               <ThemedText variant="display">{title}</ThemedText>
               <ThemedText color="textSecondary">{subtitle}</ThemedText>
@@ -42,9 +42,9 @@ const styles = StyleSheet.create({
   content: { width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center', gap: Spacing.lg },
   header: { gap: Spacing.sm, marginBottom: Spacing.md },
   logo: {
-    width: 64,
-    height: 64,
-    borderRadius: Radius.lg,
+    width: 72,
+    height: 72,
+    borderRadius: Radius.xl,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.sm,

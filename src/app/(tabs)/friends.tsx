@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { Banner } from '@/components/feedback/banner';
 import { LoadingState } from '@/components/feedback/loading-state';
+import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
@@ -119,7 +120,7 @@ function FriendsContent() {
             {friends.map((friend) => (
               <ListRow
                 key={friend.friendshipId}
-                icon="person"
+                leading={<Avatar uid={friend.profile.uid} name={friend.profile.displayName} size={40} />}
                 title={friend.profile.displayName}
                 description={`@${friend.profile.username}`}
                 onPress={() => router.push({ pathname: '/chat/[uid]', params: { uid: friend.profile.uid } })}
@@ -168,10 +169,15 @@ function IncomingRequest({
 }) {
   return (
     <Card style={styles.request} testID={`request-${request.from.username}`}>
-      <ThemedText variant="bodyStrong">{request.from.displayName}</ThemedText>
-      <ThemedText variant="caption" color="textSecondary">
-        @{request.from.username} quiere ser tu amigo
-      </ThemedText>
+      <View style={styles.requestHeader}>
+        <Avatar uid={request.from.uid} name={request.from.displayName} size={44} />
+        <View style={styles.flex}>
+          <ThemedText variant="bodyStrong">{request.from.displayName}</ThemedText>
+          <ThemedText variant="caption" color="textSecondary">
+            @{request.from.username} quiere ser tu amigo
+          </ThemedText>
+        </View>
+      </View>
       <View style={styles.requestActions}>
         <View style={styles.flex}>
           <Button label="Aceptar" icon="check" onPress={onAccept} testID={`accept-${request.from.username}`} />
@@ -202,6 +208,7 @@ function EmptyFriends() {
 const styles = StyleSheet.create({
   form: { gap: Spacing.md },
   request: { gap: Spacing.xs },
+  requestHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   requestActions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm },
   flex: { flex: 1 },
   empty: { alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.xl },

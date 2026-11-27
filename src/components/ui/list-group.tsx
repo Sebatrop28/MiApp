@@ -6,11 +6,11 @@ import { useAppTheme } from '@/hooks/use-theme';
 
 /** Tarjeta que agrupa varias `ListRow` separadas por una línea fina. */
 export function ListGroup({ children }: PropsWithChildren) {
-  const { colors } = useAppTheme();
+  const { colors, shadow } = useAppTheme();
   const items = Children.toArray(children);
 
   return (
-    <View style={[styles.group, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+    <View style={[styles.group, { backgroundColor: colors.surface, borderColor: colors.border, boxShadow: shadow }]}>
       {items.map((child, index) => (
         <Fragment key={index}>
           {index > 0 ? <View style={[styles.divider, { backgroundColor: colors.border }]} /> : null}
@@ -27,5 +27,5 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
   },
-  divider: { height: StyleSheet.hairlineWidth, marginLeft: 64 },
+  divider: { height: StyleSheet.hairlineWidth, marginLeft: 68 },
 });

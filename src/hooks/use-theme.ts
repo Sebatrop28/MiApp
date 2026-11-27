@@ -1,11 +1,15 @@
 import { useColorScheme } from 'react-native';
 
-import { Colors, type ColorScheme, type ThemeColors } from '@/constants/theme';
+import { BrandGradient, Colors, Elevation, type ColorScheme, type ThemeColors } from '@/constants/theme';
 import { useSettings } from '@/context/settings-context';
 
 export interface AppTheme {
   scheme: ColorScheme;
   colors: ThemeColors;
+  /** Degradado de marca (`backgroundImage`). */
+  gradient: string;
+  /** Sombra de las superficies elevadas (`boxShadow`). */
+  shadow: string;
 }
 
 /**
@@ -17,5 +21,5 @@ export function useAppTheme(): AppTheme {
   const { settings } = useSettings();
   const scheme: ColorScheme =
     settings.themeMode === 'system' ? (systemScheme === 'dark' ? 'dark' : 'light') : settings.themeMode;
-  return { scheme, colors: Colors[scheme] };
+  return { scheme, colors: Colors[scheme], gradient: BrandGradient[scheme], shadow: Elevation[scheme] };
 }

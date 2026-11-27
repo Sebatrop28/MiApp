@@ -17,7 +17,7 @@ export interface AvatarProps {
 
 /** Foto de perfil (guardada en caché en el teléfono) o la inicial del nombre. */
 export function Avatar({ uid, name, size = 40, version }: AvatarProps) {
-  const { colors } = useAppTheme();
+  const { gradient } = useAppTheme();
   const [loaded, setLoaded] = useState<{ key: string; data: string | null } | null>(null);
   const [revision, setRevision] = useState(0);
   const key = `${uid}:${version}:${revision}`;
@@ -39,11 +39,11 @@ export function Avatar({ uid, name, size = 40, version }: AvatarProps) {
   const data = loaded?.key === key ? loaded.data : null;
   const style = { width: size, height: size, borderRadius: size / 2 };
   return (
-    <View style={[styles.base, style, { backgroundColor: colors.primaryMuted }]} testID={`avatar-${uid}`}>
+    <View style={[styles.base, style, { backgroundImage: gradient }]} testID={`avatar-${uid}`}>
       {data ? (
         <Image source={{ uri: `data:image/jpeg;base64,${data}` }} style={style} accessibilityLabel={`Foto de ${name}`} />
       ) : (
-        <ThemedText variant={size >= 64 ? 'title' : 'bodyStrong'} color="primary">
+        <ThemedText variant={size >= 64 ? 'title' : 'bodyStrong'} color="onPrimary">
           {(name || '?').charAt(0).toUpperCase()}
         </ThemedText>
       )}

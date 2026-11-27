@@ -96,6 +96,7 @@ export default function SettingsScreen() {
             <ListGroup>
               <ListRow
                 icon="notifications"
+                tone="accent"
                 title="Notificaciones"
                 description="Recibir avisos de novedades (preferencia guardada localmente)."
                 trailing={
@@ -115,6 +116,7 @@ export default function SettingsScreen() {
             <ListGroup>
               <ListRow
                 icon="bug_report"
+                tone="warning"
                 title="Simular errores de red"
                 description="Fuerza un fallo al cargar las publicaciones de Inicio para probar los mensajes de error."
                 trailing={
@@ -134,6 +136,7 @@ export default function SettingsScreen() {
             <ListGroup>
               <ListRow
                 icon="system_update"
+                tone="success"
                 title="Actualizaciones"
                 description={settings.autoUpdate ? 'Automáticas activadas' : 'Automáticas desactivadas'}
                 onPress={() => router.navigate('/updates')}
@@ -141,6 +144,7 @@ export default function SettingsScreen() {
               />
               <ListRow
                 icon="info"
+                tone="info"
                 title="Información de la app"
                 description="Versión, dispositivo y tecnologías"
                 onPress={() => router.navigate('/about')}

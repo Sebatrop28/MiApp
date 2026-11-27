@@ -15,7 +15,7 @@ export interface TextFieldProps extends Omit<TextInputProps, 'style'> {
 export function TextField({ label, error, onFocus, onBlur, ...rest }: TextFieldProps) {
   const { colors } = useAppTheme();
   const [focused, setFocused] = useState(false);
-  const borderColor = error ? colors.danger : focused ? colors.primary : colors.border;
+  const borderColor = error ? colors.danger : focused ? colors.primary : 'transparent';
 
   return (
     <View style={styles.container}>
@@ -25,7 +25,7 @@ export function TextField({ label, error, onFocus, onBlur, ...rest }: TextFieldP
       <TextInput
         accessibilityLabel={label}
         placeholderTextColor={colors.textSecondary}
-        style={[styles.input, { borderColor, color: colors.text, backgroundColor: colors.surface }]}
+        style={[styles.input, { borderColor, color: colors.text, backgroundColor: focused ? colors.surface : colors.surfaceAlt }]}
         onFocus={(e) => {
           setFocused(true);
           onFocus?.(e);
@@ -49,8 +49,9 @@ const styles = StyleSheet.create({
   container: { gap: Spacing.xs },
   input: {
     ...Typography.body,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderRadius: Radius.md,
+    minHeight: 52,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
   },

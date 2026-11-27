@@ -25,10 +25,10 @@ export function ErrorState({
   icon = 'cloud_off',
   testID = 'error-state',
 }: ErrorStateProps) {
-  const { colors } = useAppTheme();
+  const { colors, shadow } = useAppTheme();
   return (
     <View
-      style={[styles.container, { backgroundColor: colors.surface, borderColor: colors.border }]}
+      style={[styles.container, { backgroundColor: colors.surface, borderColor: colors.border, boxShadow: shadow }]}
       accessibilityRole="alert"
       testID={testID}>
       <View style={[styles.iconWrap, { backgroundColor: colors.dangerSurface }]}>
