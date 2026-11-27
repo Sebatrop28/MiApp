@@ -101,6 +101,7 @@ export function ChatProvider({ userId, signaling: injected, relay: injectedRelay
           tag: `chat-${from}`,
         },
         source,
+        m.id,
       );
     },
     [notifyLocal],

@@ -17,7 +17,8 @@ export interface NotificationsContextValue {
   enable: () => Promise<boolean>;
   disable: () => Promise<void>;
   /** Avisa con una notificación local si corresponde (ajuste activo, app en segundo plano, otro chat...). */
-  notifyLocal: (notification: AppNotification, source: NotifySource) => void;
+  /** `eventId` (id del mensaje o de la solicitud) evita avisar dos veces del mismo evento. */
+  notifyLocal: (notification: AppNotification, source: NotifySource, eventId: string) => void;
   /** Avisa a otra cuenta con push (solo si tiene las notificaciones activadas). */
   sendPush: (toUid: string, notification: AppNotification) => void;
   /** Chat abierto en pantalla: sus mensajes no generan avisos. */
@@ -96,9 +97,9 @@ export function NotificationsProvider({ userId, children }: NotificationsProvide
   const disable = useCallback(() => updateSetting('notificationsEnabled', false), [updateSetting]);
 
   const notifyLocal = useCallback<NotificationsContextValue['notifyLocal']>(
-    (notification, source) => {
+    (notification, source, eventId) => {
       if (!enabled || permission !== 'granted') return;
-      const key = `${notification.tag ?? notification.url}:${notification.body}`;
+      const key = `${notification.kind}:${eventId}`;
       if (shown.current.has(key)) return;
       const active = AppState.currentState === 'active';
       if (active && notification.kind === 'message' && notification.url === `/chat/${activeChat.current}`) return;

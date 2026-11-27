@@ -86,6 +86,7 @@ export function FriendsProvider({ userId, displayName, children }: FriendsProvid
       notifyLocal(
         { kind: 'friend', title: 'Nueva solicitud de amistad', body: `${nameOf(r.from)} quiere ser tu amigo`, url: '/friends', tag: `friend-${r.from.uid}` },
         'remote',
+        `${r.id}:${r.createdAt}`,
       );
     }
   }, [incoming, hasProfile, notifyLocal]);
