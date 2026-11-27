@@ -45,6 +45,3 @@ example
 # build artifacts
 *.apk
 *.aab
-
-# Emuladores de Firebase
-*-debug.log
