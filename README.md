@@ -27,8 +27,8 @@ Base profesional de una aplicación Android construida con **React Native + Expo
 
 | Área | Detalle |
 | --- | --- |
-| Navegación | Expo Router con barra de pestañas nativa (Material 3 en Android): **Inicio**, **Notas**, **Amigos**, **Ajustes** y **Comunidades**. Rutas tipadas (`typedRoutes`). Pantalla 404 personalizada. |
-| Diseño | Sistema de diseño propio (`src/constants/theme.ts`): colores claro/oscuro, espaciado, radios y tipografía. Iconos Material Symbols vía `expo-symbols`. Contenido con ancho máximo para tablets. |
+| Navegación | Expo Router con barra de pestañas nativa (Material 3 en Android): **Inicio**, **Notas**, **Amigos**, **Comunidades** y **Ajustes** (siempre al final). Rutas tipadas (`typedRoutes`). Pantalla 404 personalizada. |
+| Diseño | Sistema de diseño propio (`src/constants/theme.ts`): colores claro/oscuro (violeta con degradado a rosa), sombras suaves, espaciado, radios y tipografía. Iconos Material Symbols vía `expo-symbols`. Contenido con ancho máximo para tablets. |
 | Cuentas | Hay que iniciar sesión para usar la app. Registro con nombre, correo y contraseña (se envía un correo de verificación), inicio de sesión con correo o con **Google** (Android), recuperación de contraseña y cierre de sesión en *Ajustes*. La sesión se recuerda entre aperturas. Firebase Auth. |
 | Actualizaciones | *Ajustes → Actualizaciones*: buscar e instalar versiones nuevas sin reinstalar el APK (EAS Update) y opción **Actualizar automáticamente** (al abrir la app descarga la versión nueva y ofrece reiniciar). |
 | Inicio | Muro con tus publicaciones y las de la gente que **sigues**: texto (hasta 1000 caracteres), una foto y un enlace a un archivo o página (por ejemplo, de Google Drive). Cada publicación dura **24 horas** y muestra cuánto le queda. Se puede dar «me gusta» y borrar las propias. Hace falta tener nombre de usuario (pestaña Amigos) para publicar. |
@@ -177,7 +177,7 @@ npm run android    # compila la app nativa y la instala en un emulador/dispositi
 | `npm run check` | Ejecuta las tres anteriores en orden. |
 | `npm run doctor` | Diagnostica la configuración y versiones con `expo-doctor`. |
 
-Las pruebas están en `__tests__/` (archivos `*-test.ts(x)`) y cubren utilidades, almacenamiento de ajustes y notas, servicio de contenido, el hook `useAsync`, componentes de estado y la navegación entre pantallas.
+Las pruebas están en `__tests__/` (archivos `*-test.ts(x)`) y cubren utilidades, almacenamiento de ajustes y notas, servicios de Firebase, chat y publicaciones, el hook `useAsync`, componentes de estado y la navegación entre pantallas.
 
 ---
 
@@ -236,7 +236,7 @@ npm run update:play    # app de Google Play (canal production)
 Al abrir la app, si *Actualizar automáticamente* está activado, se descarga la versión nueva y aparece «Actualización lista → Reiniciar ahora». También se puede buscar a mano en *Ajustes → Actualizaciones*.
 
 > - Solo funciona en APK/AAB generados **después** de añadir esta función (necesitan `expo-updates` y el canal de `eas.json`).
-> - Si cambias dependencias nativas (`npx expo install` de un paquete con código nativo) o la `version` de `app.json`, tienes que generar un APK nuevo con `npm run build:apk`: las actualizaciones solo llegan a APKs con la misma `runtimeVersion` (política `appVersion`).
+> - Si cambias dependencias nativas (`npx expo install` de un paquete con código nativo) o la `version` de `app.json`, tienes que generar un APK nuevo con `npm run build:apk`: las actualizaciones solo llegan a APKs con la misma `runtimeVersion` (política `fingerprint`: la huella de todo el código nativo).
 
 ### Perfiles de `eas.json`
 
@@ -304,8 +304,9 @@ MiApp/
 │   │   │   ├── _layout.tsx    # Barra de pestañas nativa
 │   │   │   ├── index.tsx      # Inicio      → /
 │   │   │   ├── notes.tsx      # Notas       → /notes
-│   │   │   ├── settings.tsx   # Ajustes     → /settings
-│   │   │   └── communities.tsx # Comunidades → /communities
+│   │   │   ├── friends.tsx    # Amigos      → /friends
+│   │   │   ├── communities.tsx # Comunidades → /communities
+│   │   │   └── settings.tsx   # Ajustes     → /settings (última pestaña)
 │   │   ├── about.tsx          # Información de la app (desde Ajustes) → /about
 │   │   ├── new-community.tsx  # Crear comunidad → /new-community
 │   │   ├── community/[id].tsx # Una comunidad y sus publicaciones → /community/:id
@@ -319,10 +320,10 @@ MiApp/
 │   │   └── feedback/          # LoadingState, SkeletonList, ErrorState, Banner
 │   ├── config/                # Lectura de la configuración de Firebase (app.json → extra)
 │   ├── constants/theme.ts     # Tokens de diseño (colores, espaciado, tipografía)
-│   ├── context/               # SettingsProvider (ajustes), AuthProvider (sesión) y NotesProvider (notas)
-│   ├── hooks/                 # useAppTheme, useAsync
-│   ├── services/              # Acceso a datos: Firebase Auth, Google, almacenamiento, contenido, info de la app
-│   └── utils/                 # Funciones puras (errores, saludo, delay)
+│   ├── context/               # Proveedores: ajustes, sesión, notas, amigos y chat
+│   ├── hooks/                 # useAppTheme, useAsync, useFeed, useFollowing, useAutoUpdate
+│   ├── services/              # Acceso a datos: Firebase (Auth, Firestore), Google, chat P2P, publicaciones, comunidades, almacenamiento
+│   └── utils/                 # Funciones puras (errores, saludo, fechas...)
 ├── app.json                   # Configuración de Expo (nombre, paquete Android, iconos)
 ├── eas.json                   # Perfiles de EAS Build / Submit
 ├── eslint.config.js
@@ -339,9 +340,8 @@ Las carpetas `android/` e `ios/` **no se versionan**: se generan con `npx expo p
 - **Nueva pantalla:** crea un archivo en `src/app/`. Para que sea una pestaña, colócalo en `src/app/(tabs)/` y añade un `NativeTabs.Trigger` en `src/app/(tabs)/_layout.tsx`.
 - **Navegar:** `const router = useRouter(); router.navigate('/settings')` o `<Link href="/about" />` (rutas tipadas).
 - **Cargar datos:** envuelve la función en `useCallback` y usa `useAsync(fn)`; obtienes `status` (`loading` / `refreshing` / `success` / `error`), `data`, `error`, `reload()` y `refresh()`.
-- **Conectar un backend real:** sustituye la implementación de `fetchHighlights` en `src/services/content.ts` por un `fetch` a tu API; la interfaz no cambia.
 - **Nuevo ajuste persistente:** añade el campo a `Settings` y `DEFAULT_SETTINGS` en `src/services/settings-storage.ts`, valídalo en `sanitizeSettings` y úsalo con `useSettings().updateSetting(...)`.
-- **Estilos:** usa siempre los tokens de `theme.ts` y `useAppTheme()`; evita colores sueltos.
+- **Estilos:** usa siempre los tokens de `theme.ts` y `useAppTheme()` (`colors`, `gradient` para el degradado de marca y `shadow` para la sombra de tarjetas); evita colores sueltos. En `ListRow` el prop `tone` cambia el color del icono y `leading` permite poner un `Avatar`.
 - **Iconos:** cualquier nombre de [Material Symbols](https://fonts.google.com/icons) (p. ej. `<Icon name="home" />`).
 
 ---

@@ -14,8 +14,8 @@ export interface CardProps extends PropsWithChildren {
 
 /** Superficie elevada. Si recibe `onPress` se comporta como botón con efecto ripple. */
 export function Card({ onPress, style, children, accessibilityLabel, accessibilityHint, testID }: CardProps) {
-  const { colors } = useAppTheme();
-  const baseStyle = [styles.card, { backgroundColor: colors.surface, borderColor: colors.border }, style];
+  const { colors, shadow } = useAppTheme();
+  const baseStyle = [styles.card, { backgroundColor: colors.surface, borderColor: colors.border, boxShadow: shadow }, style];
 
   if (!onPress) {
     return (
@@ -46,5 +46,5 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     overflow: 'hidden',
   },
-  pressed: { opacity: 0.85 },
+  pressed: { opacity: 0.85, transform: [{ scale: 0.99 }] },
 });

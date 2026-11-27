@@ -21,7 +21,7 @@ export interface SegmentedControlProps<T extends string> {
 
 /** Selector de una opción entre varias (equivalente a un grupo de radio). */
 export function SegmentedControl<T extends string>({ options, value, onChange, accessibilityLabel }: SegmentedControlProps<T>) {
-  const { colors } = useAppTheme();
+  const { colors, shadow } = useAppTheme();
 
   return (
     <View
@@ -38,7 +38,7 @@ export function SegmentedControl<T extends string>({ options, value, onChange, a
             accessibilityLabel={option.label}
             accessibilityState={{ selected, checked: selected }}
             testID={`segment-${option.value}`}
-            style={[styles.segment, selected && { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            style={[styles.segment, selected && { backgroundColor: colors.surface, borderColor: colors.border, boxShadow: shadow }]}>
             {option.icon ? <Icon name={option.icon} size={18} color={selected ? 'primary' : 'textSecondary'} /> : null}
             <ThemedText variant={selected ? 'bodyStrong' : 'body'} color={selected ? 'primary' : 'textSecondary'}>
               {option.label}

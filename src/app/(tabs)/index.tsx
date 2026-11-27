@@ -12,7 +12,7 @@ import { Card } from '@/components/ui/card';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { Screen } from '@/components/ui/screen';
 import { ThemedText } from '@/components/ui/themed-text';
-import { Spacing } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useFriends } from '@/context/friends-context';
 import { useSettings } from '@/context/settings-context';
@@ -33,6 +33,7 @@ export default function HomeScreen() {
   const { following, error: followingError } = useFollowing(profile ? user?.uid : undefined);
   const authors = profile && following ? [profile.uid, ...following] : null;
   const feed = useFeed(authors, settings.simulateNetworkErrors);
+  const { colors } = useAppTheme();
   const firstName = (profile?.displayName ?? user?.displayName ?? '').split(' ')[0];
 
   // Una vez por sesión, ayuda a borrar las publicaciones expiradas (sin TTL del plan de pago).
@@ -65,10 +66,13 @@ export default function HomeScreen() {
       testID="home-screen">
       {profile ? (
         <Card onPress={() => router.push('/new-post')} style={styles.composer} accessibilityLabel="Escribir una publicación" testID="button-new-post">
+          <Avatar uid={profile.uid} name={profile.displayName} size={40} />
+          <View style={[styles.composerInput, { backgroundColor: colors.surfaceAlt }]}>
+            <ThemedText color="textSecondary" numberOfLines={1}>
+              ¿Qué quieres compartir hoy?
+            </ThemedText>
+          </View>
           <Icon name="add_photo_alternate" color="primary" />
-          <ThemedText color="textSecondary" style={styles.flex}>
-            ¿Qué quieres compartir hoy? Dura 24 horas.
-          </ThemedText>
         </Card>
       ) : profileStatus === 'ready' ? (
         <View style={styles.gap}>
@@ -129,10 +133,10 @@ function HeaderButton({ icon, label, onPress, testID }: { icon: IconName; label:
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   headerButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  composer: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  composer: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.md },
+  composerInput: { flex: 1, borderRadius: Radius.pill, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm },
   gap: { gap: Spacing.md },
   empty: { alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.xxl },
   center: { textAlign: 'center' },

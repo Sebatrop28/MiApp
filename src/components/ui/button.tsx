@@ -25,7 +25,7 @@ const VARIANT_COLORS: Record<ButtonVariant, { background: ThemeColor; foreground
 };
 
 export function Button({ label, onPress, variant = 'primary', icon, loading = false, disabled = false, testID }: ButtonProps) {
-  const { colors } = useAppTheme();
+  const { colors, gradient } = useAppTheme();
   const palette = VARIANT_COLORS[variant];
   const isDisabled = disabled || loading;
 
@@ -41,6 +41,7 @@ export function Button({ label, onPress, variant = 'primary', icon, loading = fa
       style={({ pressed }) => [
         styles.button,
         { backgroundColor: colors[palette.background] },
+        variant === 'primary' && { backgroundImage: gradient, boxShadow: `0px 6px 16px ${colors.primary}40` },
         pressed && styles.pressed,
         isDisabled && styles.disabled,
       ]}>
@@ -60,7 +61,7 @@ export function Button({ label, onPress, variant = 'primary', icon, loading = fa
 
 const styles = StyleSheet.create({
   button: {
-    minHeight: 48,
+    minHeight: 50,
     borderRadius: Radius.pill,
     paddingHorizontal: Spacing.xl,
     justifyContent: 'center',
@@ -72,6 +73,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.sm,
   },
-  pressed: { opacity: 0.85 },
+  pressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
   disabled: { opacity: 0.5 },
 });
