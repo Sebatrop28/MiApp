@@ -8,7 +8,7 @@ import { NOTIFICATION_CHANNELS, type AppNotification } from './notifications.typ
  *
  * pushTokens/{uid}  { token, updatedAt }
  *
- * Solo lo pueden leer sus amigos y quien le envía una solicitud (ver `firestore.rules`).
+ * Solo lo pueden leer sus amigos (ver `firestore.rules`): un desconocido no puede enviarle avisos.
  * Al desactivar las notificaciones o cerrar sesión se borra, así nadie puede avisarle.
  */
 export const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';

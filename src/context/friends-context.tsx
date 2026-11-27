@@ -143,16 +143,9 @@ export function FriendsProvider({ userId, displayName, children }: FriendsProvid
         return 'accepted';
       }
       await friends.sendFriendRequest(profile, to);
-      sendPush(to.uid, {
-        kind: 'friend',
-        title: 'Nueva solicitud de amistad',
-        body: `${nameOf(profile)} quiere ser tu amigo`,
-        url: '/friends',
-        tag: `friend-${profile.uid}`,
-      });
       return 'sent';
     },
-    [profile, friendList, incoming, outgoing, acceptRequest, sendPush],
+    [profile, friendList, incoming, outgoing, acceptRequest],
   );
 
   const value = useMemo<FriendsContextValue>(
