@@ -85,7 +85,7 @@ export function FriendsProvider({ userId, displayName, children }: FriendsProvid
       if (known.has(r.id)) continue;
       notifyLocal(
         { kind: 'friend', title: 'Nueva solicitud de amistad', body: `${nameOf(r.from)} quiere ser tu amigo`, url: '/friends', tag: `friend-${r.from.uid}` },
-        'remote',
+        'direct',
         `${r.id}:${r.createdAt}`,
       );
     }

@@ -7,7 +7,7 @@ import * as notifications from '@/services/notifications';
 import type { AppNotification, NotificationPermission } from '@/services/notifications.types';
 import * as push from '@/services/push';
 
-/** De dónde viene el aviso: `direct` no genera push (llegó por P2P con la app abierta). */
+/** `remote`: el evento también llega por push con la app en segundo plano; `direct`: solo hay aviso local. */
 export type NotifySource = 'direct' | 'remote';
 
 export interface NotificationsContextValue {
