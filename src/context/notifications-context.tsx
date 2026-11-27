@@ -68,6 +68,15 @@ export function NotificationsProvider({ userId, children }: NotificationsProvide
     return notifications.subscribeToTaps((url) => router.push(url as never));
   }, []);
 
+  // Al volver a la app se sincroniza otra vez el token (p. ej. si se desactivó sin conexión).
+  const [syncTick, setSyncTick] = useState(0);
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') setSyncTick((tick) => tick + 1);
+    });
+    return () => subscription.remove();
+  }, []);
+
   useEffect(() => {
     if (status !== 'ready' || !notifications.notificationsSupported) return;
     let cancelled = false;
@@ -76,20 +85,23 @@ export function NotificationsProvider({ userId, children }: NotificationsProvide
       if (enabled && current === 'undetermined') current = await notifications.requestPermission();
       if (cancelled) return;
       setPermission(current);
-      const token = current === 'granted' ? await notifications.getExpoPushToken() : null;
-      if (cancelled || !token) return;
-      if (enabled) {
+      if (enabled && current === 'granted') {
+        const token = await notifications.getExpoPushToken();
+        if (cancelled || !token) return;
         await push.savePushToken(userId, token);
         registeredToken.current = token;
       } else {
-        registeredToken.current = null;
+        // Sin conexión puede no obtenerse el token: se usa el que se registró en esta sesión.
+        const token = registeredToken.current ?? (current === 'granted' ? await notifications.getExpoPushToken() : null);
+        if (cancelled || !token) return;
         await push.removePushToken(userId, token);
+        registeredToken.current = null;
       }
     })().catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [enabled, status, userId]);
+  }, [enabled, status, userId, syncTick]);
 
   const enable = useCallback(async () => {
     const result = await notifications.requestPermission().catch(() => 'denied' as const);
